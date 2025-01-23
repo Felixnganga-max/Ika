@@ -5,7 +5,7 @@ import { Login } from "./components";
 
 const App = () => {
   return (
-    <div className="w-screen min-h-screen h-auto flex flex-col items-center justify-center">
+    <div className="w-full min-h-screen h-auto flex flex-col items-start justify-center">
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Home />} />
