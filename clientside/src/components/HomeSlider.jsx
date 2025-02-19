@@ -4,7 +4,10 @@ import Slider from "./Slider";
 
 const HomeSlider = () => {
   return (
-    <motion.div className="w-full m-5 flex items-center mt-16 justify-center flex-col m-auto">
+    <motion.div
+      id="menu-section"
+      className="w-full m-5 flex items-center mt-16 justify-center flex-col m-auto pt-16"
+    >
       <div className="w-full flex items-center justify-between">
         {/* Header Section */}
         <div className="text-center md:text-left">

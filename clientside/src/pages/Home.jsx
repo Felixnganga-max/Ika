@@ -3,6 +3,7 @@ import Navigation from "../components/Navigation.jsx";
 import Hero from "../components/Hero";
 import HomeSlider from "../components/HomeSlider";
 import Fruits from "../components/Fruits.jsx";
+import Footer from "../components/Footer.jsx";
 
 const Home = () => {
   return (
@@ -12,6 +13,7 @@ const Home = () => {
         <Hero />
         <Fruits />
         <HomeSlider />
+        <Footer />
       </div>
     </div>
   );
