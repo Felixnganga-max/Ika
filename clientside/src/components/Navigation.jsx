@@ -65,7 +65,7 @@ const Navigation = () => {
               <motion.a
                 key={item.title}
                 href={item.href}
-                className="text-white hover:text-[#ffd700] px-3 py-2 rounded-md text-xl font-medium transition-colors"
+                className="text-white hover:text-[#ffd700] px-3 py-2 rounded-md md:text-lg text-sm font-medium transition-colors"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >

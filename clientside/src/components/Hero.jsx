@@ -40,24 +40,24 @@ const Hero = () => {
       </div>
 
       {/* Stuff on the Right */}
-      <div className="flex flex-1 py-2 items-center justify-end relative">
+      <div className="flex flex-1 py-2 items-center justify-center relative">
         <img
-          className="absolute top-0 right-0 md:right-12 w-full h-420 md:w-auto md:h-650"
+          className="absolute top-0 right-0 md:right-20 w-full h-420 md:w-auto md:h-650"
           alt="Background"
           src={assets.heroBg}
         />
-        <div className="w-full md:w-[460px] ml-0 flex flex-wrap justify-center items-center gap-4 gap-y-14">
+        <div className="w-full md:w-[460px] ml-0 flex flex-wrap justify-center items-start gap-4 gap-y-14">
           {foods &&
             foods.map((item, index) => (
               <motion.div
                 key={index}
                 {...staggerFadeInout(index)}
-                className="w-32 h-30 md:w-190 p-4 bg-white/50 backdrop-blur-md rounded-3xl flex flex-col items-center justify-center drop-shadow-lg"
+                className="w-28 h-28 md:w-[150px] p-4 bg-white/50 backdrop-blur-md rounded-xl flex flex-col items-center justify-center drop-shadow-md"
               >
                 <img
                   src={item.image}
                   alt={item.name}
-                  className="w-full h-[80px] object-cover rounded-lg md:-mt-10"
+                  className="w-[70%] h-[100px] object-cover rounded-lg md:-mt-10"
                 />
                 <p className="text-sm lg:text-xl font-semibold text-gray-800">
                   {item.name}

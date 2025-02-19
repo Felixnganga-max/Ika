@@ -10,17 +10,17 @@ const Fruits = () => {
   };
 
   return (
-    <div>
+    <div className="ml-5">
       {/* topic side  */}
-      <div>
-        <h3 className="text-2xl font-semibold text-gray-800">
+      <div className="text-center md:text-left">
+        <h3 className="mt-10 md:text-2xl text-lg font-semibold text-gray-800">
           Our Fresh Fruits
         </h3>
-        <div className="w-[10vw] h-1 rounded-md bg-[#800020]"></div>
+        <div className="w-[20vw] h-1 rounded-md bg-[#800020] mx-auto md:mx-0"></div>
       </div>
 
       {/* Fruits list  */}
-      <div className="flex items-start flex-wrap justify-start gap-4 mt-4">
+      <div className="flex items-center md:items-start flex-wrap justify-center md:justify-start gap-4 mt-4">
         {foods.map((food, index) => (
           <div
             key={index}
@@ -30,7 +30,7 @@ const Fruits = () => {
             onClick={() => handleSlideClick(index)}
           >
             <img
-              className={`w-32 h-32 md:w-40 md:h-40 object-cover outline-none rounded-full border-4 ${
+              className={`w-28 h-28 md:w-32 md:h-32 object-cover outline-none rounded-full border-4 ${
                 activeIndex === index
                   ? "border-[#800020] shadow-lg"
                   : "border-gray-100"
