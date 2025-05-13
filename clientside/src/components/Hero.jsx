@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "react-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Star,
   ChevronRight,

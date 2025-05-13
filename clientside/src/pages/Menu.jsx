@@ -9,11 +9,10 @@ import {
   Tag,
   DollarSign,
 } from "lucide-react";
-import assets from "../assets/assets.js";
 
 const Menu = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All");
+  const [activeCategory, setActiveCategory] = useState("Grilled Meat");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [maxBudget, setMaxBudget] = useState(3000);
   const [selectedTags, setSelectedTags] = useState([]);
@@ -42,13 +41,21 @@ const Menu = () => {
     "Affordable",
   ];
 
+  // Placeholder images for demo
+  const placeholderImages = {
+    food1: "/api/placeholder/300/200",
+    food2: "/api/placeholder/300/200",
+    food3: "/api/placeholder/300/200",
+    food4: "/api/placeholder/300/200",
+  };
+
   // Menu items with dishes
   const menuItems = {
     "Grilled Meat": [
       {
         name: "Goat Grill Deluxe",
         price: 850,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food1,
         description:
           "Succulent goat meat marinated with spices, slow-roasted over open flames",
         rating: 4.9,
@@ -58,7 +65,7 @@ const Menu = () => {
       {
         name: "Chicken Grill Combo",
         price: 650,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food2,
         description: "Grilled chicken with salad, served with ugali or chips",
         rating: 4.7,
         tags: ["Affordable", "Hot Hot"],
@@ -67,7 +74,7 @@ const Menu = () => {
       {
         name: "Mixed Grill Platter",
         price: 1200,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food3,
         description:
           "Mix of beef, goat and chicken with roasted potatoes and salad",
         rating: 4.8,
@@ -79,7 +86,7 @@ const Menu = () => {
       {
         name: "Ugali with Greens",
         price: 350,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food1,
         description: "Fresh greens served with hot ugali and meat stew",
         rating: 4.5,
         tags: ["Affordable", "Filling"],
@@ -88,7 +95,7 @@ const Menu = () => {
       {
         name: "Ugali with Fish",
         price: 650,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food2,
         description: "Fresh tilapia served with ugali and local vegetables",
         rating: 4.8,
         tags: ["Hot Hot", "Best Seller"],
@@ -97,7 +104,7 @@ const Menu = () => {
       {
         name: "Ugali with Beef",
         price: 550,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food3,
         description:
           "Tender beef stew with perfectly cooked ugali and steamed vegetables",
         rating: 4.6,
@@ -109,7 +116,7 @@ const Menu = () => {
       {
         name: "Sausage Special",
         price: 150,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food1,
         description: "Split sausage with salad and special sauce",
         rating: 4.7,
         tags: ["Affordable", "Best Seller"],
@@ -118,7 +125,7 @@ const Menu = () => {
       {
         name: "Special Sausage",
         price: 200,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food2,
         description: "Traditional sausage made with meat and spices",
         rating: 4.6,
         tags: ["Hot Hot"],
@@ -127,7 +134,7 @@ const Menu = () => {
       {
         name: "Roasted Corn",
         price: 100,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food3,
         description: "Roasted maize cobs with lemon-chili salt",
         rating: 4.5,
         tags: ["Affordable", "Hot Hot"],
@@ -138,7 +145,7 @@ const Menu = () => {
       {
         name: "Chicken Biryani",
         price: 550,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food1,
         description:
           "Spiced rice dish with chicken, potatoes and special spices",
         rating: 4.8,
@@ -148,7 +155,7 @@ const Menu = () => {
       {
         name: "Fish in Coconut",
         price: 750,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food2,
         description: "Fish in rich coconut sauce with garlic and tamarind",
         rating: 4.9,
         tags: ["Best Seller", "Hot Hot"],
@@ -157,7 +164,7 @@ const Menu = () => {
       {
         name: "Fried Bread with Peas",
         price: 350,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food3,
         description:
           "Sweet fried bread served with pigeon peas in coconut sauce",
         rating: 4.6,
@@ -169,7 +176,7 @@ const Menu = () => {
       {
         name: "Ginger Ice",
         price: 150,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food1,
         description: "Refreshing ginger drink with lime and honey",
         rating: 4.7,
         tags: ["Very Cold", "Best Seller"],
@@ -178,7 +185,7 @@ const Menu = () => {
       {
         name: "Passion Cocktail",
         price: 200,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food2,
         description: "Passion fruit cocktail with local honey and lime",
         rating: 4.8,
         tags: ["Very Cold", "Very Sweet"],
@@ -187,7 +194,7 @@ const Menu = () => {
       {
         name: "Tamarind Shake",
         price: 180,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food3,
         description: "Tamarind drink blended with ice and brown sugar",
         rating: 4.6,
         tags: ["Very Cold", "Affordable"],
@@ -198,7 +205,7 @@ const Menu = () => {
       {
         name: "Supreme Fries",
         price: 450,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food1,
         description:
           "Our signature fries topped with minced meat, cheese and special sauce",
         rating: 4.9,
@@ -208,7 +215,7 @@ const Menu = () => {
       {
         name: "Spiced Fries",
         price: 350,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food2,
         description: "Crispy fries tossed in special spices",
         rating: 4.7,
         tags: ["Hot Hot", "Affordable"],
@@ -217,41 +224,40 @@ const Menu = () => {
       {
         name: "Salad Fries",
         price: 400,
-        image: assets.avocado || assets.tea,
+        image: placeholderImages.food3,
         description: "Fries topped with fresh salad and avocado",
         rating: 4.6,
         tags: ["Affordable", "Hot Hot"],
         isHealthy: true,
       },
     ],
-    // "All" category will be generated based on other categories
   };
 
   // Star food items that rotate in the background
   const starFoodItems = [
     {
       name: "Supreme Fries",
-      image: assets.avocado || assets.tea,
+      image: placeholderImages.food1,
     },
     {
       name: "Goat Grill",
-      image: assets.avocado || assets.tea,
+      image: placeholderImages.food2,
     },
     {
       name: "Chicken Biryani",
-      image: assets.avocado || assets.tea,
+      image: placeholderImages.food3,
     },
     {
       name: "Ugali with Fish",
-      image: assets.avocado || assets.tea,
+      image: placeholderImages.food4,
     },
     {
       name: "Sausage Special",
-      image: assets.avocado || assets.tea,
+      image: placeholderImages.food1,
     },
     {
       name: "Passion Cocktail",
-      image: assets.avocado || assets.tea,
+      image: placeholderImages.food2,
     },
   ];
 
@@ -285,7 +291,7 @@ const Menu = () => {
 
   // Filter menu items based on search term, category, and filters
   const getFilteredMenuItems = () => {
-    let items = menuItems[activeCategory];
+    let items = menuItems[activeCategory] || [];
 
     // Search filter
     if (searchTerm) {
@@ -341,7 +347,7 @@ const Menu = () => {
   const filteredItems = getFilteredMenuItems();
 
   return (
-    <div className="relative w-full min-h-screen bg-gradient-to-b from-orange-50 to-white overflow-hidden py-8">
+    <div className="mt-20 relative w-full min-h-screen bg-gradient-to-b from-orange-50 to-white overflow-hidden py-8">
       {/* Background - Rotating Star Food Items */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {starPositions.map((pos, index) => (
@@ -354,9 +360,6 @@ const Menu = () => {
               transform: `rotate(${pos.rotation}deg)`,
               zIndex: 0,
               opacity: 0.07,
-              animation: `floatAround ${pos.animationDuration}s linear ${
-                pos.delay
-              }s infinite ${pos.direction > 0 ? "normal" : "reverse"}`,
             }}
           >
             <img
@@ -377,9 +380,8 @@ const Menu = () => {
       <div
         className="absolute inset-0 opacity-5 pointer-events-none"
         style={{
-          backgroundImage: `url(${assets.avocado || assets.tea})`,
+          backgroundImage: `url(${placeholderImages.food1})`,
           backgroundSize: "100px",
-          animation: "floatBackground 60s linear infinite",
         }}
       />
 
@@ -393,16 +395,14 @@ const Menu = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between">
             <div>
               <h1 className="text-4xl md:text-5xl font-bold text-gray-800">
-                <span className="text-[#800020]">Food</span> Menu
-                <span className="inline-block ml-2 animate-bounce-slow">
-                  🍽️
-                </span>
+                <span className="text-red-900">Food</span> Menu
+                <span className="inline-block ml-2">🍽️</span>
               </h1>
               <p className="text-lg text-gray-600 mt-2">
                 Taste the authentic flavors with our
                 <span className="relative mx-1 font-semibold">
                   mouthwatering dishes
-                  <span className="absolute bottom-0 left-0 w-full h-1 bg-yellow-300 animate-width-expand"></span>
+                  <span className="absolute bottom-0 left-0 w-full h-1 bg-yellow-300"></span>
                 </span>
               </p>
             </div>
@@ -430,7 +430,7 @@ const Menu = () => {
 
               {/* Animated search cue */}
               {!searchTerm && (
-                <div className="absolute right-12 top-1/2 transform -translate-y-1/2 text-sm text-gray-400 pointer-events-none animate-pulse">
+                <div className="absolute right-12 top-1/2 transform -translate-y-1/2 text-sm text-gray-400 pointer-events-none">
                   Try "Grill"
                 </div>
               )}
@@ -461,7 +461,7 @@ const Menu = () => {
               }`}
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Budget Input Field (replaces price range slider) */}
+                {/* Budget Input Field */}
                 <div>
                   <h3 className="font-semibold text-gray-700 mb-2">
                     Enter Your Budget (KSh)
@@ -476,7 +476,7 @@ const Menu = () => {
                         min="0"
                         max="3000"
                         step="50"
-                        className="block w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:ring-[#800020] focus:border-[#800020] transition-colors text-gray-700"
+                        className="block w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:ring-red-900 focus:border-red-900 transition-colors text-gray-700"
                         value={maxBudget}
                         onChange={(e) =>
                           setMaxBudget(parseInt(e.target.value) || 0)
@@ -500,7 +500,7 @@ const Menu = () => {
                         onClick={() => toggleTag(tag)}
                         className={`flex items-center px-3 py-1 rounded-full text-sm transition-colors ${
                           selectedTags.includes(tag)
-                            ? "bg-[#800020] text-white"
+                            ? "bg-red-900 text-white"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                         }`}
                       >
@@ -522,7 +522,7 @@ const Menu = () => {
                 </button>
                 <button
                   onClick={() => setIsFilterOpen(false)}
-                  className="bg-[#800020] text-white px-4 py-1 rounded-full text-sm hover:bg-red-800 transition-colors"
+                  className="bg-red-900 text-white px-4 py-1 rounded-full text-sm hover:bg-red-800 transition-colors"
                 >
                   Apply Filters
                 </button>
@@ -546,7 +546,7 @@ const Menu = () => {
                 onClick={() => handleCategoryClick(category)}
                 className={`whitespace-nowrap px-4 py-2 rounded-full transition-all ${
                   activeCategory === category
-                    ? "bg-[#800020] text-white font-medium shadow"
+                    ? "bg-red-900 text-white font-medium shadow"
                     : "bg-gray-100 hover:bg-gray-200 text-gray-700"
                 }`}
               >
@@ -585,10 +585,10 @@ const Menu = () => {
           >
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden sticky top-4">
               {/* Category Header */}
-              <div className="bg-[#800020] text-white py-4 px-6">
+              <div className="bg-red-900 text-white py-4 px-6">
                 <h2 className="text-xl font-bold flex items-center">
                   <span>Menu Categories</span>
-                  <span className="ml-2 animate-pulse">🍴</span>
+                  <span className="ml-2">🍴</span>
                 </h2>
               </div>
 
@@ -600,7 +600,7 @@ const Menu = () => {
                     onClick={() => handleCategoryClick(category)}
                     className={`w-full text-left px-6 py-3 transition-all flex items-center justify-between ${
                       activeCategory === category
-                        ? "bg-orange-50 border-l-4 border-[#800020] font-medium text-[#800020]"
+                        ? "bg-orange-50 border-l-4 border-red-900 font-medium text-red-900"
                         : "hover:bg-gray-50 text-gray-700"
                     }`}
                   >
@@ -638,7 +638,7 @@ const Menu = () => {
                       alt={starFoodItems[rotatingFoodIndex].name}
                       className="h-24 w-24 object-cover rounded-full mx-auto border-2 border-orange-300"
                     />
-                    <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1 animate-pulse">
+                    <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1">
                       HOT!
                     </div>
                   </div>
@@ -670,7 +670,7 @@ const Menu = () => {
                 </h2>
 
                 {/* Custom Message for Category */}
-                <div className="bg-orange-100 text-orange-800 px-4 py-1 rounded-full text-sm font-medium animate-pulse">
+                <div className="bg-orange-100 text-orange-800 px-4 py-1 rounded-full text-sm font-medium">
                   {activeCategory === "Grilled Meat"
                     ? "Hot Grilled Meat!"
                     : activeCategory === "Staple Combos"
@@ -695,7 +695,7 @@ const Menu = () => {
                   </p>
                   <button
                     onClick={() => setSearchTerm("")}
-                    className="mt-2 text-sm text-[#800020] hover:underline"
+                    className="mt-2 text-sm text-red-900 hover:underline"
                   >
                     Clear search
                   </button>
@@ -735,22 +735,10 @@ const Menu = () => {
                       {/* Overlay gradient */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-60"></div>
 
-                      {/* Hot steam effect for hot foods */}
-                      {item.tags?.includes("Hot Hot") && (
-                        <div className="absolute top-2 left-1/2 transform -translate-x-1/2">
-                          <div className="steam-container">
-                            <div className="steam steam-one"></div>
-                            <div className="steam steam-two"></div>
-                            <div className="steam steam-three"></div>
-                            <div className="steam steam-four"></div>
-                          </div>
-                        </div>
-                      )}
-
                       {/* Special Tags */}
                       <div className="absolute top-4 left-4 flex flex-col space-y-2">
                         {item.isNew && (
-                          <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">
+                          <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
                             NEW!
                           </span>
                         )}
@@ -767,7 +755,7 @@ const Menu = () => {
                       </div>
 
                       {/* Item price */}
-                      <div className="absolute bottom-4 right-4 bg-white/90 text-[#800020] font-bold px-3 py-1 rounded-full shadow-lg">
+                      <div className="absolute bottom-4 right-4 bg-white/90 text-red-900 font-bold px-3 py-1 rounded-full shadow-lg">
                         {formatPrice(item.price)}
                       </div>
 
@@ -779,7 +767,6 @@ const Menu = () => {
 
                     {/* Item Details */}
                     <div className="p-4">
-                      {/* Rating */}
                       {/* Rating */}
                       <div className="flex items-center mb-2">
                         <div className="flex">
@@ -821,11 +808,13 @@ const Menu = () => {
                                 : tag === "Very Cold"
                                 ? "bg-blue-100 text-blue-600"
                                 : tag === "Best Seller"
-                                ? "bg-purple-100 text-purple-600"
+                                ? "bg-yellow-100 text-yellow-700"
                                 : tag === "Very Sweet"
                                 ? "bg-pink-100 text-pink-600"
                                 : tag === "Filling"
                                 ? "bg-green-100 text-green-600"
+                                : tag === "Affordable"
+                                ? "bg-purple-100 text-purple-600"
                                 : "bg-gray-100 text-gray-600"
                             }`}
                           >
@@ -834,160 +823,76 @@ const Menu = () => {
                         ))}
                       </div>
 
-                      {/* Add to Order Button */}
-                      <button className="w-full bg-[#800020] hover:bg-[#600010] text-white py-2 rounded-lg transition-colors flex items-center justify-center">
-                        <PlusCircle className="w-4 h-4 mr-2" />
-                        Add to Order
-                      </button>
+                      {/* Order Button */}
+                      <div className="flex justify-between items-center">
+                        <button className="flex items-center bg-red-900 hover:bg-red-800 text-white px-4 py-2 rounded-full transition-colors text-sm">
+                          <PlusCircle className="w-4 h-4 mr-1" />
+                          Add to Order
+                        </button>
+                        <button className="text-gray-500 hover:text-red-900 text-sm underline">
+                          More Details
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Empty State */}
+              {/* Empty state when no items match */}
               {filteredItems.length === 0 && !searchTerm && (
-                <div className="p-12 text-center">
-                  <div className="text-gray-400 mb-4 text-5xl">🍽️</div>
-                  <h3 className="text-xl font-semibold text-gray-700">
+                <div className="p-12 flex flex-col items-center justify-center text-center">
+                  <div className="bg-gray-100 p-6 rounded-full mb-4">
+                    <Search className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">
                     No items found
                   </h3>
-                  <p className="text-gray-500 mt-2">
-                    Try adjusting your filters or select another category
+                  <p className="text-gray-500 max-w-sm">
+                    Try adjusting your filters or budget to see more delicious
+                    options!
                   </p>
                   <button
                     onClick={resetFilters}
-                    className="mt-4 text-[#800020] hover:underline font-medium"
+                    className="mt-4 bg-red-900 text-white px-6 py-2 rounded-full hover:bg-red-800 transition-colors"
                   >
-                    Reset filters
+                    Reset Filters
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Pagination or Load More (simplified) */}
-            <div className="mt-6 text-center">
-              <button className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-6 py-2 rounded-full transition-colors">
-                Load More
-              </button>
-            </div>
+            {/* "Load More" Button (shown when there are many items) */}
+            {filteredItems.length > 4 && (
+              <div className="mt-6 text-center">
+                <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-6 py-3 rounded-full transition-colors inline-flex items-center">
+                  <span>Load More Items</span>
+                  <ChevronDown className="ml-2 w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="mt-16 text-center text-gray-600 text-sm">
-          <p>© 2025 Local Food Menu. All rights reserved.</p>
-          <p className="mt-1">
-            Bringing the best local flavors to your table 🍽️
-          </p>
+        {/* Footer message with Animation */}
+        <div className="mt-12 text-center px-4">
+          <div
+            className={`transition-all duration-1000 ${
+              isLoaded
+                ? "translate-y-0 opacity-100"
+                : "translate-y-10 opacity-0"
+            }`}
+          >
+            <p className="text-gray-500 italic">
+              Enhance your experience by using our filters to find dishes that
+              suit your taste!
+            </p>
+            <p className="text-gray-600 font-medium mt-2">
+              Need assistance with your order? Call us at{" "}
+              <span className="text-red-900">+254 712 345 678</span>
+            </p>
+          </div>
         </div>
       </div>
-
-      {/* CSS Animations */}
-      <style jsx>{`
-        @keyframes floatAround {
-          0% {
-            transform: translate(0, 0) rotate(0deg);
-          }
-          25% {
-            transform: translate(5%, 5%) rotate(90deg);
-          }
-          50% {
-            transform: translate(0, 10%) rotate(180deg);
-          }
-          75% {
-            transform: translate(-5%, 5%) rotate(270deg);
-          }
-          100% {
-            transform: translate(0, 0) rotate(360deg);
-          }
-        }
-
-        @keyframes floatBackground {
-          0% {
-            background-position: 0 0;
-          }
-          100% {
-            background-position: 100% 100%;
-          }
-        }
-
-        @keyframes bounce-slow {
-          0%,
-          100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-10px);
-          }
-        }
-
-        @keyframes width-expand {
-          0% {
-            width: 0;
-          }
-          100% {
-            width: 100%;
-          }
-        }
-
-        .animate-bounce-slow {
-          animation: bounce-slow 3s infinite;
-        }
-
-        .animate-width-expand {
-          animation: width-expand 1.5s ease-in-out;
-        }
-
-        .steam-container {
-          position: relative;
-          width: 20px;
-          height: 20px;
-        }
-
-        .steam {
-          position: absolute;
-          height: 15px;
-          width: 4px;
-          border-radius: 10px;
-          background-color: #fff;
-          margin-left: 8px;
-          animation: steam 1.5s ease-out infinite;
-          opacity: 0.6;
-        }
-
-        .steam-one {
-          animation-delay: 0.5s;
-        }
-
-        .steam-two {
-          animation-delay: 0.7s;
-          margin-left: 4px;
-        }
-
-        .steam-three {
-          animation-delay: 0.9s;
-          margin-left: 12px;
-        }
-
-        .steam-four {
-          animation-delay: 1.1s;
-          margin-left: 16px;
-        }
-
-        @keyframes steam {
-          0% {
-            transform: translateY(0) scaleX(1);
-            opacity: 0.6;
-          }
-          50% {
-            opacity: 0.3;
-          }
-          100% {
-            transform: translateY(-15px) scaleX(3);
-            opacity: 0;
-          }
-        }
-      `}</style>
     </div>
   );
 };
