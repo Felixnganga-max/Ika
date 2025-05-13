@@ -1,158 +1,192 @@
+import axios from "axios";
+import dotenv from "dotenv";
 import orderModel from "../models/orderModel.js";
 import userModel from "../models/userModel.js";
-import Stripe from "stripe";
+import { generateToken } from "../utils/generateToken.js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+dotenv.config();
 
-// Placing order for the frontend
-// Placing order for the frontend
-const placeOrder = async (req, res) => {
-  const frontend_url = "http://localhost:5175";
-  const { userId, items, amount, address } = req.body;
+const SHORTCODE = process.env.BUSINESS_SHORT_CODE;
+const PASSKEY = process.env.PASS_KEY;
+const CALLBACK_URL = process.env.CALLBACK_URL;
+const DARAJA_BASE_URL = "https://sandbox.safaricom.co.ke";
 
-  if (!userId || !items || !amount || !address) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing required fields" });
-  }
-
-  try {
-    const newOrder = new orderModel({
-      userId,
-      items,
-      amount,
-      address,
-      status: "Food Processing", // Default status
-    });
-
-    await newOrder.save();
-
-    // Clear the user's cart data
-    await userModel.findByIdAndUpdate(userId, { cartData: {} });
-
-    // Prepare Stripe line items
-    const line_items = items.map((item) => ({
-      price_data: {
-        currency: "kes",
-        product_data: {
-          name: item.name,
-        },
-        unit_amount: item.price * 100,
-      },
-      quantity: item.quantity,
-    }));
-
-    // Add delivery charges
-    line_items.push({
-      price_data: {
-        currency: "kes",
-        product_data: {
-          name: "Delivery Charges",
-        },
-        unit_amount: 100 * 100,
-      },
-      quantity: 1,
-    });
-
-    // Create a Stripe session
-    const session = await stripe.checkout.sessions.create({
-      line_items,
-      mode: "payment",
-      success_url: `${frontend_url}/verify?success=true&orderId=${newOrder._id}`,
-      cancel_url: `${frontend_url}/verify?success=false&orderId=${newOrder._id}`,
-    });
-
-    res.json({
-      success: true,
-      session_url: session.url,
-      orderDetails: {
-        totalAmountKES: (amount + 100).toFixed(2), // Add delivery charges and format to KES
-        deliveryChargesKES: "100.00",
-        items,
-      },
-    });
-  } catch (error) {
-    console.error("Error placing order:", error);
-    res.status(500).json({ success: false, message: "Error placing order" });
-  }
+const getTimestamp = () => {
+  const date = new Date();
+  return (
+    date.getFullYear() +
+    ("0" + (date.getMonth() + 1)).slice(-2) +
+    ("0" + date.getDate()).slice(-2) +
+    ("0" + date.getHours()).slice(-2) +
+    ("0" + date.getMinutes()).slice(-2) +
+    ("0" + date.getSeconds()).slice(-2)
+  );
 };
 
-// Verify order
-const verifyOrder = async (req, res) => {
-  const { orderId, success } = req.body;
+const getMpesaPassword = (timestamp) => {
+  return Buffer.from(`${SHORTCODE}${PASSKEY}${timestamp}`).toString("base64");
+};
 
-  if (!orderId || success === undefined) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing required fields" });
-  }
+const placeOrder = async (req, res) => {
+  console.log("📥 Received Order Request:", req.body);
 
   try {
-    if (success === "true") {
-      await orderModel.findByIdAndUpdate(orderId, { payment: true });
-      res.json({ success: true, message: "Payment successful" });
-    } else {
-      await orderModel.findByIdAndDelete(orderId);
-      res.json({
+    const userId = req.user.id;
+    let { items, amount, address, mobileNumber } = req.body;
+
+    if (!items || !amount || !address || !mobileNumber) {
+      return res
+        .status(400)
+        .json({ success: false, message: "❌ Missing required fields" });
+    }
+
+    amount = Math.floor(parseFloat(amount));
+    if (isNaN(amount) || amount <= 0) {
+      return res.status(400).json({
         success: false,
-        message: "Payment not completed, order deleted",
+        message: "❌ Invalid amount. Must be a positive integer.",
       });
     }
+
+    mobileNumber = mobileNumber.toString().replace(/^0/, "254");
+
+    const newOrder = new orderModel({ userId, items, amount, address });
+    await newOrder.save();
+
+    await userModel.findByIdAndUpdate(userId, { cartData: {} });
+
+    await generateToken(req, res, async () => {
+      try {
+        const token = req.token;
+        const timestamp = getTimestamp();
+        const password = getMpesaPassword(timestamp);
+
+        const paymentData = {
+          BusinessShortCode: SHORTCODE,
+          Password: password,
+          Timestamp: timestamp,
+          TransactionType: "CustomerPayBillOnline",
+          Amount: amount,
+          PartyA: mobileNumber,
+          PartyB: SHORTCODE,
+          PhoneNumber: mobileNumber,
+          CallBackURL: CALLBACK_URL,
+          AccountReference: `Order_${newOrder._id.toString()}`,
+          TransactionDesc: "Order Payment",
+        };
+
+        console.log("📤 Sending M-Pesa STK Push Request:", paymentData);
+
+        const { data } = await axios.post(
+          `${DARAJA_BASE_URL}/mpesa/stkpush/v1/processrequest`,
+          paymentData,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        console.log("✅ Daraja STK Push Response:", data);
+
+        if (data.ResponseCode === "0") {
+          return res.json({
+            success: true,
+            message: "✅ STK Push sent. Complete payment on your phone.",
+            MerchantRequestID: data.MerchantRequestID,
+            CheckoutRequestID: data.CheckoutRequestID,
+            orderDetails: { totalAmountKES: amount, items },
+          });
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: "❌ STK Push failed. Try again.",
+          });
+        }
+      } catch (error) {
+        console.error(
+          "❌ Payment Processing Error:",
+          error.response?.data || error.message
+        );
+        return res
+          .status(500)
+          .json({
+            success: false,
+            message: "Error processing payment request",
+          });
+      }
+    });
   } catch (error) {
-    console.error("Error verifying order:", error);
-    res.status(500).json({ success: false, message: "Error verifying order" });
-  }
-};
-
-// Get user orders
-const userOrders = async (req, res) => {
-  const { userId } = req.body;
-
-  if (!userId) {
+    console.error("❌ Order Placement Error:", error.message);
     return res
-      .status(400)
-      .json({ success: false, message: "User ID is required" });
-  }
-
-  try {
-    const orders = await orderModel.find({ userId });
-    res.json({ success: true, data: orders });
-  } catch (error) {
-    console.error("Error fetching user orders:", error);
-    res.status(500).json({ success: false, message: "Error fetching orders" });
-  }
-};
-
-// List all orders for the admin panel
-const listOrders = async (req, res) => {
-  try {
-    const orders = await orderModel.find({});
-    res.json({ success: true, data: orders });
-  } catch (error) {
-    console.error("Error listing orders:", error);
-    res.status(500).json({ success: false, message: "Error listing orders" });
-  }
-};
-
-// Update order status
-const updateStatus = async (req, res) => {
-  const { orderId, status } = req.body;
-
-  if (!orderId || !status) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Order ID and status are required" });
-  }
-
-  try {
-    await orderModel.findByIdAndUpdate(orderId, { status });
-    res.json({ success: true, message: "Order status updated" });
-  } catch (error) {
-    console.error("Error updating order status:", error);
-    res
       .status(500)
-      .json({ success: false, message: "Error updating order status" });
+      .json({ success: false, message: "Error processing order" });
   }
 };
 
-export { placeOrder, updateStatus, listOrders, verifyOrder, userOrders };
+const verifyOrder = async (req, res) => {
+  const { CheckoutRequestID } = req.body;
+
+  if (!CheckoutRequestID) {
+    return res
+      .status(400)
+      .json({ success: false, message: "❌ CheckoutRequestID required" });
+  }
+
+  try {
+    await generateToken(req, res, async () => {
+      try {
+        const token = req.token;
+        const timestamp = getTimestamp();
+
+        const { data } = await axios.post(
+          `${DARAJA_BASE_URL}/mpesa/stkpushquery/v1/query`,
+          {
+            BusinessShortCode: SHORTCODE,
+            Password: getMpesaPassword(timestamp),
+            Timestamp: timestamp,
+            CheckoutRequestID,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        console.log("✅ M-Pesa Verification Response:", data);
+
+        if (data.ResultCode === "0") {
+          return res.json({
+            success: true,
+            message: "✅ Payment successful. Redirecting to orders page...",
+            redirectTo: "/orders",
+          });
+        } else {
+          return res.json({
+            success: false,
+            message: "❌ Payment failed. Staying on checkout page.",
+            redirectTo: "/checkout",
+          });
+        }
+      } catch (error) {
+        console.error(
+          "❌ Order Verification Error:",
+          error.response?.data || error.message
+        );
+        return res
+          .status(500)
+          .json({ success: false, message: "Verification error" });
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error Verifying Payment:", error.message);
+    return res
+      .status(500)
+      .json({ success: false, message: "Payment verification error" });
+  }
+};
+
+export { placeOrder, verifyOrder };

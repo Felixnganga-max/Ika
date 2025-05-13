@@ -1,12 +1,17 @@
 import mongoose from "mongoose";
+import dns from "dns";
+
+// Fix for DNS SRV resolution issue
+dns.setDefaultResultOrder("ipv4first");
 
 export const connectDB = async () => {
-  await mongoose.connect('mongodb+srv://standardwebtechnologies:Promise%402020@cluster0.evei3.mongodb.net/food-del', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  }).then(() => {
+  try {
+    await mongoose.connect(
+      "mongodb+srv://standardwebtechnologies:apblnlv544gOyIk9@cluster0.lp6o5.mongodb.net/ikafries"
+    );
     console.log("DB Connected");
-  }).catch((error) => {
+  } catch (error) {
     console.error("DB Connection Error:", error);
-  });
+    throw error; // Re-throwing the error allows the calling code to handle it
+  }
 };

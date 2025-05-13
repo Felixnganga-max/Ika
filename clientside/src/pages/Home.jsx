@@ -11,7 +11,6 @@ const Home = () => {
       <Navigation />
       <div>
         <Hero />
-        <Fruits />
         <HomeSlider />
         <Footer />
       </div>

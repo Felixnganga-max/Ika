@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { PencilIcon, TrashIcon } from "@heroicons/react/24/solid";
+import { PencilIcon, TrashIcon, Loader2 } from "lucide-react";
 
 const ProductManagement = () => {
   const [products, setProducts] = useState([]);
@@ -8,11 +8,13 @@ const ProductManagement = () => {
     name: "",
     price: "",
     description: "",
-    ingredients: "",
-    image: null,
+    category: "",
+    images: [],
   });
+  const [previewUrls, setPreviewUrls] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
-  const [viewMode, setViewMode] = useState("add"); // Toggle between 'add' and 'list'
+  const [viewMode, setViewMode] = useState("add");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -20,49 +22,101 @@ const ProductManagement = () => {
   };
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    setFormData({ ...formData, image: file });
+    const files = Array.from(e.target.files);
+    setFormData({ ...formData, images: files });
+    const urls = files.map((file) => URL.createObjectURL(file));
+    setPreviewUrls(urls);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isEditing) {
-      // Update product
-      setProducts(
-        products.map((product) =>
-          product.id === formData.id ? formData : product
-        )
-      );
-    } else {
-      // Add new product
-      setProducts([...products, { ...formData, id: Date.now() }]);
+    setIsSubmitting(true);
+
+    const submitData = new FormData();
+    submitData.append("name", formData.name);
+    submitData.append("price", formData.price);
+    submitData.append("description", formData.description);
+    submitData.append("category", formData.category);
+    formData.images.forEach((image) => submitData.append("images", image));
+
+    try {
+      if (isEditing) {
+        submitData.append("id", formData.id);
+        const response = await fetch(
+          `http://localhost:4000/api/food/update/${formData.id}`,
+          {
+            method: "PUT",
+            body: submitData,
+          }
+        );
+        if (!response.ok) throw new Error("Failed to update product");
+
+        // Update local state
+        const updatedProducts = products.map((product) =>
+          product.id === formData.id
+            ? { ...formData, images: previewUrls }
+            : product
+        );
+        setProducts(updatedProducts);
+      } else {
+        const response = await fetch("http://localhost:4000/api/food/add", {
+          method: "POST",
+          body: submitData,
+        });
+        if (!response.ok) throw new Error("Failed to add product");
+
+        // Update local state
+        const newProduct = { ...formData, id: Date.now(), images: previewUrls };
+        setProducts([...products, newProduct]);
+      }
+
+      // Reset form
+      setFormData({
+        id: "",
+        name: "",
+        price: "",
+        description: "",
+        category: "",
+        images: [],
+      });
+      setPreviewUrls([]);
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Error submitting product:", error);
+    } finally {
+      setIsSubmitting(false);
     }
-    setFormData({
-      id: "",
-      name: "",
-      price: "",
-      description: "",
-      ingredients: "",
-      image: null,
-    });
-    setIsEditing(false);
   };
 
   const handleEdit = (product) => {
     setFormData(product);
+    setPreviewUrls(
+      Array.isArray(product.images) ? product.images : [product.images]
+    );
     setIsEditing(true);
     setViewMode("add");
   };
 
-  const handleDelete = (id) => {
-    setProducts(products.filter((product) => product.id !== id));
+  const handleDelete = async (id) => {
+    try {
+      const response = await fetch(
+        `http://localhost:4000/api/food/delete/${id}`,
+        {
+          method: "DELETE",
+        }
+      );
+      if (!response.ok) throw new Error("Failed to delete product");
+
+      setProducts(products.filter((product) => product.id !== id));
+    } catch (error) {
+      console.error("Error deleting product:", error);
+    }
   };
 
   return (
-    <div className="p-4 w-full">
+    <div className="w-full h-full flex flex-col">
       <h1 className="text-2xl font-bold mb-4">Product Management</h1>
 
-      {/* Toggle Buttons */}
       <div className="flex space-x-4 mb-6">
         <button
           onClick={() => setViewMode("add")}
@@ -86,7 +140,6 @@ const ProductManagement = () => {
         </button>
       </div>
 
-      {/* Add Product Form */}
       {viewMode === "add" && (
         <form onSubmit={handleSubmit} className="mb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -118,9 +171,9 @@ const ProductManagement = () => {
               required
             />
             <textarea
-              name="ingredients"
-              placeholder="Ingredients (comma-separated)"
-              value={formData.ingredients}
+              name="category"
+              placeholder="Category"
+              value={formData.category}
               onChange={handleInputChange}
               className="p-2 border rounded md:col-span-2"
               rows="3"
@@ -128,23 +181,51 @@ const ProductManagement = () => {
             />
             <input
               type="file"
-              name="image"
+              name="images"
               onChange={handleImageChange}
               className="p-2 border rounded md:col-span-2"
               accept="image/*"
+              multiple
               required={!isEditing}
             />
+
+            {previewUrls.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:col-span-2">
+                {previewUrls.map((url, index) => (
+                  <div
+                    key={index}
+                    className="relative aspect-square rounded-lg overflow-hidden"
+                  >
+                    <img
+                      src={url}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
           <button
             type="submit"
-            className="mt-4 bg-[#800020] text-white px-4 py-2 rounded hover:bg-[#ffd700] hover:text-[#800020]"
+            disabled={isSubmitting}
+            className="mt-4 bg-[#800020] text-white px-4 py-2 rounded hover:bg-[#ffd700] hover:text-[#800020] disabled:opacity-50 flex items-center justify-center"
           >
-            {isEditing ? "Update Product" : "Add Product"}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="animate-spin -ml-1 mr-3 h-5 w-5" />
+                {isEditing ? "Updating..." : "Adding..."}
+              </>
+            ) : isEditing ? (
+              "Update Product"
+            ) : (
+              "Add Product"
+            )}
           </button>
         </form>
       )}
 
-      {/* Product List */}
       {viewMode === "list" && (
         <div className="overflow-x-auto">
           <table className="min-w-full bg-white border rounded">
@@ -154,7 +235,7 @@ const ProductManagement = () => {
                 <th className="p-2 border">Name</th>
                 <th className="p-2 border">Price</th>
                 <th className="p-2 border">Description</th>
-                <th className="p-2 border">Ingredients</th>
+                <th className="p-2 border">Category</th>
                 <th className="p-2 border">Actions</th>
               </tr>
             </thead>
@@ -162,9 +243,13 @@ const ProductManagement = () => {
               {products.map((product) => (
                 <tr key={product.id}>
                   <td className="p-2 border">
-                    {product.image && (
+                    {product.images && product.images.length > 0 && (
                       <img
-                        src={URL.createObjectURL(product.image)}
+                        src={
+                          Array.isArray(product.images)
+                            ? product.images[0]
+                            : product.images
+                        }
                         alt={product.name}
                         className="w-16 h-16 object-cover rounded"
                       />
@@ -173,7 +258,7 @@ const ProductManagement = () => {
                   <td className="p-2 border">{product.name}</td>
                   <td className="p-2 border">${product.price}</td>
                   <td className="p-2 border">{product.description}</td>
-                  <td className="p-2 border">{product.ingredients}</td>
+                  <td className="p-2 border">{product.category}</td>
                   <td className="p-2 border">
                     <div className="flex space-x-2">
                       <button

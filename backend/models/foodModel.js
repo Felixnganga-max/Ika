@@ -1,15 +1,18 @@
 import mongoose from "mongoose";
 
 // Create Food Schema
-const foodSchema = new mongoose.Schema({
+const foodSchema = new mongoose.Schema(
+  {
     name: { type: String, required: true }, // Required
-    description: { type: String, required: false }, // Make this optional
-    price: { type: Number, required: true}, // Required
-    image: { type: String }, // Not required
-    category: { type: String, required: true } // Required
-});
+    description: { type: String, required: false }, // Optional
+    price: { type: Number, required: true }, // Required
+    images: { type: [String], default: [] }, // Store multiple image URLs (Cloudinary)
+    category: { type: String, required: true }, // Required
+  },
+  { timestamps: true } // Auto-generate createdAt & updatedAt
+);
 
 // Correctly create the model
-const foodModel = mongoose.models.food || mongoose.model("food", foodSchema);
+const Food = mongoose.models.Food || mongoose.model("Food", foodSchema);
 
-export default foodModel;
+export default Food;

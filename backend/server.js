@@ -1,40 +1,50 @@
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
 import { connectDB } from "./config/db.js";
-import foodRouter from './routes/foodRoute.js';
-import 'dotenv/config';
+import foodRouter from "./routes/foodRoute.js";
 import userRouter from "./routes/userRouter.js";
 import cartRouter from "./routes/cartRoutes.js";
 import orderRouter from "./routes/orderRoute.js";
 
-const port = process.env.PORT || 4000;
+// Load environment variables
+dotenv.config();
 
-// App config
+// Database connection
+connectDB();
+
+// Initialize Express app
 const app = express();
+const port = process.env.PORT || 4000;
 
 // Middleware
 app.use(express.json());
-app.use(cors({
-  origin: [
-    'https://platter-pal-frondend.vercel.app/'
-  ]
-}));
 
-// db connection 
-connectDB();
+// ✅ Fix: Correct CORS configuration
+// Enable CORS for all routes
+app.use(
+  cors({
+    origin: "http://localhost:5173", // Allow requests from this origin
+    methods: ["GET", "POST", "PUT", "DELETE"], // Allow these HTTP methods
+    credentials: true, // Allow cookies and credentials
+  })
+);
 
-// API Endpoints
-app.use("/api/food", foodRouter);
+// Serve static images
 app.use("/images", express.static("uploads"));
+
+// API Routes
+app.use("/api/food", foodRouter);
 app.use("/api/user", userRouter);
 app.use("/api/cart", cartRouter);
-app.use("/api/order", orderRouter); // Corrected path
+app.use("/api/order", orderRouter);
 
+// Root endpoint
 app.get("/", (req, res) => {
-  res.send("API Working");
+  res.send("API is running...");
 });
 
 // Start server
-app.listen(process.env.PORT || 4000, () => {
-  console.log(`Server running on port ${process.env.PORT || 4000}`);
+app.listen(port, () => {
+  console.log(`🚀 Server running on http://localhost:${port}`);
 });
