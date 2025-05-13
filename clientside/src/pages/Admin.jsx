@@ -21,6 +21,7 @@ import {
   Filter,
   MoreHorizontal,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import ProductManagement from "../components/ProductManagement";
 
 // Mock data for bikers - removed email and updated earnings to Ksh.
@@ -173,6 +174,8 @@ const BikerFormModal = ({ biker, onClose, onSave }) => {
     onSave(bikerData);
     onClose();
   };
+
+  const navigate = useNavigate();
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
@@ -955,7 +958,10 @@ const Admin = () => {
 
         {/* Logout Button */}
         <div className="absolute bottom-0 w-full p-4 border-t border-[#a05070]">
-          <button className="flex w-full items-center p-2 rounded-lg hover:bg-white hover:bg-opacity-10">
+          <button
+            className="flex w-full items-center p-2 rounded-lg hover:bg-white hover:bg-opacity-10"
+            onClick={() => (window.location.href = "/")}
+          >
             <LogOut size={20} className="mr-3" />
             Logout
           </button>
