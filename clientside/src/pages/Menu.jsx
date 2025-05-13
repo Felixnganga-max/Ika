@@ -9,6 +9,7 @@ import {
   Tag,
   DollarSign,
 } from "lucide-react";
+import assets from "../assets/assets";
 
 const Menu = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -55,7 +56,7 @@ const Menu = () => {
       {
         name: "Goat Grill Deluxe",
         price: 850,
-        image: placeholderImages.food1,
+        image: assets.pancakes,
         description:
           "Succulent goat meat marinated with spices, slow-roasted over open flames",
         rating: 4.9,
@@ -65,7 +66,7 @@ const Menu = () => {
       {
         name: "Chicken Grill Combo",
         price: 650,
-        image: placeholderImages.food2,
+        image: assets.pancakes,
         description: "Grilled chicken with salad, served with ugali or chips",
         rating: 4.7,
         tags: ["Affordable", "Hot Hot"],
@@ -74,7 +75,7 @@ const Menu = () => {
       {
         name: "Mixed Grill Platter",
         price: 1200,
-        image: placeholderImages.food3,
+        image: assets.pancakes,
         description:
           "Mix of beef, goat and chicken with roasted potatoes and salad",
         rating: 4.8,
@@ -86,7 +87,7 @@ const Menu = () => {
       {
         name: "Ugali with Greens",
         price: 350,
-        image: placeholderImages.food1,
+        image: assets.pancakes,
         description: "Fresh greens served with hot ugali and meat stew",
         rating: 4.5,
         tags: ["Affordable", "Filling"],
@@ -95,7 +96,7 @@ const Menu = () => {
       {
         name: "Ugali with Fish",
         price: 650,
-        image: placeholderImages.food2,
+        image: assets.pancakes,
         description: "Fresh tilapia served with ugali and local vegetables",
         rating: 4.8,
         tags: ["Hot Hot", "Best Seller"],
@@ -104,7 +105,7 @@ const Menu = () => {
       {
         name: "Ugali with Beef",
         price: 550,
-        image: placeholderImages.food3,
+        image: assets.pancakes,
         description:
           "Tender beef stew with perfectly cooked ugali and steamed vegetables",
         rating: 4.6,
@@ -116,7 +117,7 @@ const Menu = () => {
       {
         name: "Sausage Special",
         price: 150,
-        image: placeholderImages.food1,
+        image: assets.pancakes,
         description: "Split sausage with salad and special sauce",
         rating: 4.7,
         tags: ["Affordable", "Best Seller"],
@@ -125,7 +126,7 @@ const Menu = () => {
       {
         name: "Special Sausage",
         price: 200,
-        image: placeholderImages.food2,
+        image: assets.pancakes,
         description: "Traditional sausage made with meat and spices",
         rating: 4.6,
         tags: ["Hot Hot"],
@@ -134,7 +135,7 @@ const Menu = () => {
       {
         name: "Roasted Corn",
         price: 100,
-        image: placeholderImages.food3,
+        image: assets.pancakes,
         description: "Roasted maize cobs with lemon-chili salt",
         rating: 4.5,
         tags: ["Affordable", "Hot Hot"],
@@ -145,7 +146,7 @@ const Menu = () => {
       {
         name: "Chicken Biryani",
         price: 550,
-        image: placeholderImages.food1,
+        image: assets.pancakes,
         description:
           "Spiced rice dish with chicken, potatoes and special spices",
         rating: 4.8,
@@ -155,7 +156,7 @@ const Menu = () => {
       {
         name: "Fish in Coconut",
         price: 750,
-        image: placeholderImages.food2,
+        image: assets.pancakes,
         description: "Fish in rich coconut sauce with garlic and tamarind",
         rating: 4.9,
         tags: ["Best Seller", "Hot Hot"],
@@ -164,7 +165,7 @@ const Menu = () => {
       {
         name: "Fried Bread with Peas",
         price: 350,
-        image: placeholderImages.food3,
+        image: assets.pancakes,
         description:
           "Sweet fried bread served with pigeon peas in coconut sauce",
         rating: 4.6,
@@ -176,7 +177,7 @@ const Menu = () => {
       {
         name: "Ginger Ice",
         price: 150,
-        image: placeholderImages.food1,
+        image: assets.pancakes,
         description: "Refreshing ginger drink with lime and honey",
         rating: 4.7,
         tags: ["Very Cold", "Best Seller"],
@@ -185,7 +186,7 @@ const Menu = () => {
       {
         name: "Passion Cocktail",
         price: 200,
-        image: placeholderImages.food2,
+        image: assets.pancakes,
         description: "Passion fruit cocktail with local honey and lime",
         rating: 4.8,
         tags: ["Very Cold", "Very Sweet"],
@@ -194,7 +195,7 @@ const Menu = () => {
       {
         name: "Tamarind Shake",
         price: 180,
-        image: placeholderImages.food3,
+        image: assets.pancakes,
         description: "Tamarind drink blended with ice and brown sugar",
         rating: 4.6,
         tags: ["Very Cold", "Affordable"],
@@ -205,7 +206,7 @@ const Menu = () => {
       {
         name: "Supreme Fries",
         price: 450,
-        image: placeholderImages.food1,
+        image: assets.pancakes,
         description:
           "Our signature fries topped with minced meat, cheese and special sauce",
         rating: 4.9,
@@ -215,7 +216,7 @@ const Menu = () => {
       {
         name: "Spiced Fries",
         price: 350,
-        image: placeholderImages.food2,
+        image: assets.pancakes,
         description: "Crispy fries tossed in special spices",
         rating: 4.7,
         tags: ["Hot Hot", "Affordable"],
@@ -224,7 +225,7 @@ const Menu = () => {
       {
         name: "Salad Fries",
         price: 400,
-        image: placeholderImages.food3,
+        image: assets.pancakes,
         description: "Fries topped with fresh salad and avocado",
         rating: 4.6,
         tags: ["Affordable", "Hot Hot"],
@@ -237,27 +238,27 @@ const Menu = () => {
   const starFoodItems = [
     {
       name: "Supreme Fries",
-      image: placeholderImages.food1,
+      image: assets.tea,
     },
     {
       name: "Goat Grill",
-      image: placeholderImages.food2,
+      image: assets.pancakes,
     },
     {
       name: "Chicken Biryani",
-      image: placeholderImages.food3,
+      image: assets.pancakes,
     },
     {
       name: "Ugali with Fish",
-      image: placeholderImages.food4,
+      image: assets.avocado,
     },
     {
       name: "Sausage Special",
-      image: placeholderImages.food1,
+      image: assets.pancakes,
     },
     {
       name: "Passion Cocktail",
-      image: placeholderImages.food2,
+      image: assets.pancakes,
     },
   ];
 
