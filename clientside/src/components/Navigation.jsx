@@ -57,10 +57,10 @@ const Navigation = () => {
   };
 
   const menuItems = [
-    { title: "Place Order", href: "/order", icon: ShoppingCart },
+    { title: "Place Order", href: "#", icon: ShoppingCart },
     { title: "Our Menu", href: "/menu", isScroll: true },
     { title: "About Us", href: "/about-us" },
-    { title: "Get In Touch", href: "/contact" },
+    { title: "Get In Touch", href: "#" },
     { title: "Dashboard", href: "/admin" },
   ];
 
