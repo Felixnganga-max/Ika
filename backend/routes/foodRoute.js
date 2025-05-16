@@ -2,31 +2,31 @@ import express from "express";
 import {
   addFood,
   listFood,
+  updateFood,
   removeFood,
+  toggleOffer,
+  updateRecipe,
 } from "../controllers/foodController.js";
-import multer from "multer";
-import { CloudinaryStorage } from "multer-storage-cloudinary";
-import { cloudinary } from "../config/cloudinary.js";
+import { upload } from "../config/cloudinary.js";
 
-const foodRouter = express.Router();
+const router = express.Router();
 
-// Cloudinary storage setup
-const cloudinaryStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: "food_images", // Cloudinary folder
-    format: async (req, file) => "png", // Convert all images to PNG
-    public_id: (req, file) => Date.now() + "-" + file.originalname, // Unique file name
-  },
-});
+// Route to add a new food item (with image upload)
+router.post("/", upload.array("images", 5), addFood);
 
-// Multer setup for handling file uploads
-const upload = multer({ storage: cloudinaryStorage });
+// Route to get all food items (sorted by latest)
+router.get("/", listFood);
 
-// Routes
-foodRouter.post("/add", upload.array("images", 5), addFood); // Support multiple image uploads
-foodRouter.get("/list", listFood);
-foodRouter.delete("/remove", removeFood);
-foodRouter.post("/delete", removeFood);
+// Route to update an existing food item (with potential image upload)
+router.put("/:id", upload.array("images", 5), updateFood);
 
-export default foodRouter;
+// Route to delete a food item
+router.delete("/", removeFood);
+
+// Route to toggle the offer status of a food item
+router.patch("/toggle-offer/:id", toggleOffer);
+
+// Route to update only the recipe of a food item
+router.patch("/update-recipe/:id", updateRecipe);
+
+export default router;

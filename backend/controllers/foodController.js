@@ -6,13 +6,19 @@ const addFood = async (req, res) => {
     // Check if images are uploaded; if not, set images to an empty array
     const imageUrls = req.files ? req.files.map((file) => file.path) : [];
 
-    // Create a new food item
+    // Create a new food item with all the new fields
     const food = new foodModel({
       name: req.body.name,
       description: req.body.description,
       price: req.body.price,
       category: req.body.category,
       images: imageUrls.reverse(), // Last uploaded image should be at index 0, or an empty array if no images
+      isOnOffer:
+        req.body.isOnOffer === "true" || req.body.isOnOffer === true
+          ? true
+          : false,
+      offerPrice: req.body.offerPrice || null,
+      recipe: req.body.recipe || "",
     });
 
     // Save the food item to the database
@@ -57,12 +63,28 @@ const updateFood = async (req, res) => {
       updatedImages = [...newImageUrls.reverse(), ...updatedImages]; // Newest images first
     }
 
-    // Update food details
+    // Update food details including the new fields
     food.name = req.body.name || food.name;
     food.description = req.body.description || food.description;
     food.price = req.body.price || food.price;
     food.category = req.body.category || food.category;
     food.images = updatedImages.slice(0, 5); // Keep only the last 5 images
+
+    // Handle new fields
+    if (req.body.isOnOffer !== undefined) {
+      food.isOnOffer =
+        req.body.isOnOffer === "true" || req.body.isOnOffer === true
+          ? true
+          : false;
+    }
+
+    if (req.body.offerPrice !== undefined) {
+      food.offerPrice = req.body.offerPrice;
+    }
+
+    if (req.body.recipe !== undefined) {
+      food.recipe = req.body.recipe;
+    }
 
     const updatedFood = await food.save();
     res.status(200).json({ success: true, data: updatedFood });
@@ -103,4 +125,61 @@ const removeFood = async (req, res) => {
   }
 };
 
-export { addFood, listFood, updateFood, removeFood };
+// ✅ Toggle Offer Status
+const toggleOffer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const food = await foodModel.findById(id);
+
+    if (!food) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Food not found" });
+    }
+
+    // Toggle the offer status
+    food.isOnOffer = !food.isOnOffer;
+
+    // If setting to offer with no price, calculate a default offer price (e.g., 20% off)
+    if (food.isOnOffer && (!food.offerPrice || food.offerPrice >= food.price)) {
+      food.offerPrice = (food.price * 0.8).toFixed(2);
+    }
+
+    // If removing from offer, can optionally set offerPrice to null
+    if (!food.isOnOffer) {
+      food.offerPrice = null;
+    }
+
+    const updatedFood = await food.save();
+    res.status(200).json({ success: true, data: updatedFood });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ success: false, message: "Error toggling offer status" });
+  }
+};
+
+// ✅ Update Recipe
+const updateRecipe = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const food = await foodModel.findById(id);
+
+    if (!food) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Food not found" });
+    }
+
+    food.recipe = req.body.recipe;
+    const updatedFood = await food.save();
+
+    res.status(200).json({ success: true, data: updatedFood });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Error updating recipe" });
+  }
+};
+
+export { addFood, listFood, updateFood, removeFood, toggleOffer, updateRecipe };

@@ -109,12 +109,10 @@ const placeOrder = async (req, res) => {
           "❌ Payment Processing Error:",
           error.response?.data || error.message
         );
-        return res
-          .status(500)
-          .json({
-            success: false,
-            message: "Error processing payment request",
-          });
+        return res.status(500).json({
+          success: false,
+          message: "Error processing payment request",
+        });
       }
     });
   } catch (error) {
@@ -159,6 +157,12 @@ const verifyOrder = async (req, res) => {
         console.log("✅ M-Pesa Verification Response:", data);
 
         if (data.ResultCode === "0") {
+          // Update the payment status in the order
+          const orderRef = data.ResultDesc.match(/Order_([a-f0-9]+)/i);
+          if (orderRef && orderRef[1]) {
+            await orderModel.findByIdAndUpdate(orderRef[1], { payment: true });
+          }
+
           return res.json({
             success: true,
             message: "✅ Payment successful. Redirecting to orders page...",
@@ -189,4 +193,99 @@ const verifyOrder = async (req, res) => {
   }
 };
 
-export { placeOrder, verifyOrder };
+/**
+ * Get all orders (admin functionality)
+ */
+const listOrders = async (req, res) => {
+  try {
+    const orders = await orderModel.find().sort({ date: -1 });
+
+    return res.json({
+      success: true,
+      count: orders.length,
+      orders,
+    });
+  } catch (error) {
+    console.error("❌ Error Fetching Orders:", error.message);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error fetching orders" });
+  }
+};
+
+/**
+ * Get orders for a specific user
+ */
+const userOrders = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const orders = await orderModel.find({ userId }).sort({ date: -1 });
+
+    return res.json({
+      success: true,
+      count: orders.length,
+      orders,
+    });
+  } catch (error) {
+    console.error("❌ Error Fetching User Orders:", error.message);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error fetching user orders" });
+  }
+};
+
+/**
+ * Update order status
+ */
+const updateStatus = async (req, res) => {
+  try {
+    const { orderId, status } = req.body;
+
+    if (!orderId || !status) {
+      return res
+        .status(400)
+        .json({ success: false, message: "❌ Order ID and status required" });
+    }
+
+    // Valid status values
+    const validStatuses = [
+      "Food Processing",
+      "On the Way",
+      "Delivered",
+      "Cancelled",
+    ];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "❌ Invalid status. Valid values: " + validStatuses.join(", "),
+      });
+    }
+
+    const updatedOrder = await orderModel.findByIdAndUpdate(
+      orderId,
+      { status },
+      { new: true }
+    );
+
+    if (!updatedOrder) {
+      return res
+        .status(404)
+        .json({ success: false, message: "❌ Order not found" });
+    }
+
+    return res.json({
+      success: true,
+      message: "✅ Order status updated successfully",
+      order: updatedOrder,
+    });
+  } catch (error) {
+    console.error("❌ Error Updating Order Status:", error.message);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error updating order status" });
+  }
+};
+
+export { placeOrder, verifyOrder, listOrders, userOrders, updateStatus };
