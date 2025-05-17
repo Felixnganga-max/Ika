@@ -85,7 +85,12 @@ const Navigation = () => {
               closeMenus();
             }}
           >
-            <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
+            <h1
+              onClick={() => {
+                window.location = "/";
+              }}
+              className="text-4xl md:text-5xl font-bold text-white tracking-tight"
+            >
               Ika{" "}
               <span className="text-[#ffd700] inline-block group-hover:scale-105 transition-transform duration-300">
                 Fries

@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 // Base API URL
-const API_URL = "https://ika-cua5-backend.vercel.app/api/food";
+const API_URL = "https://ika-cua5-backend.vercel.app/api/food/";
 
 // Categories for dropdown
 const categories = [

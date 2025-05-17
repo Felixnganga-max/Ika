@@ -8,29 +8,36 @@ import {
   PlusCircle,
   Tag,
   DollarSign,
+  ShoppingCart,
+  X,
+  Heart,
+  Clock,
+  Utensils,
 } from "lucide-react";
-import assets from "../assets/assets";
+import axios from "axios";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 const Menu = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeCategory, setActiveCategory] = useState("Grilled Meat");
+  const [activeCategory, setActiveCategory] = useState("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [maxBudget, setMaxBudget] = useState(3000);
   const [selectedTags, setSelectedTags] = useState([]);
   const [hoveredItem, setHoveredItem] = useState(null);
   const [rotatingFoodIndex, setRotatingFoodIndex] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [foods, setFoods] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [categories, setCategories] = useState(["all"]);
+  const [cart, setCart] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [favorites, setFavorites] = useState([]);
+  const [showAddAnimation, setShowAddAnimation] = useState(false);
+  const [addedItem, setAddedItem] = useState(null);
   const menuRef = useRef(null);
-
-  // Food Categories
-  const menuCategories = [
-    "Grilled Meat",
-    "Staple Combos",
-    "Street Food",
-    "Coastal Dishes",
-    "Local Drinks",
-    "Special Fries",
-  ];
+  const navigate = useNavigate();
 
   // Food Tags
   const foodTags = [
@@ -42,274 +49,109 @@ const Menu = () => {
     "Affordable",
   ];
 
-  // Placeholder images for demo
-  const placeholderImages = {
-    food1: "/api/placeholder/300/200",
-    food2: "/api/placeholder/300/200",
-    food3: "/api/placeholder/300/200",
-    food4: "/api/placeholder/300/200",
-  };
+  // Fetch foods from API and extract unique categories
+  useEffect(() => {
+    const fetchFoods = async () => {
+      try {
+        const response = await axios.get(
+          "https://ika-cua5-backend.vercel.app/api/food/"
+        );
+        if (response.data && Array.isArray(response.data.data)) {
+          setFoods(response.data.data);
 
-  // Menu items with dishes
-  const menuItems = {
-    "Grilled Meat": [
-      {
-        name: "Goat Grill Deluxe",
-        price: 850,
-        image: assets.pancakes,
-        description:
-          "Succulent goat meat marinated with spices, slow-roasted over open flames",
-        rating: 4.9,
-        tags: ["Hot Hot", "Best Seller", "Filling"],
-        isPopular: true,
-      },
-      {
-        name: "Chicken Grill Combo",
-        price: 650,
-        image: assets.pancakes,
-        description: "Grilled chicken with salad, served with ugali or chips",
-        rating: 4.7,
-        tags: ["Affordable", "Hot Hot"],
-        isHealthy: true,
-      },
-      {
-        name: "Mixed Grill Platter",
-        price: 1200,
-        image: assets.pancakes,
-        description:
-          "Mix of beef, goat and chicken with roasted potatoes and salad",
-        rating: 4.8,
-        tags: ["Filling", "Best Seller"],
-        isNew: true,
-      },
-    ],
-    "Staple Combos": [
-      {
-        name: "Ugali with Greens",
-        price: 350,
-        image: assets.pancakes,
-        description: "Fresh greens served with hot ugali and meat stew",
-        rating: 4.5,
-        tags: ["Affordable", "Filling"],
-        isHealthy: true,
-      },
-      {
-        name: "Ugali with Fish",
-        price: 650,
-        image: assets.pancakes,
-        description: "Fresh tilapia served with ugali and local vegetables",
-        rating: 4.8,
-        tags: ["Hot Hot", "Best Seller"],
-        isPopular: true,
-      },
-      {
-        name: "Ugali with Beef",
-        price: 550,
-        image: assets.pancakes,
-        description:
-          "Tender beef stew with perfectly cooked ugali and steamed vegetables",
-        rating: 4.6,
-        tags: ["Filling", "Affordable"],
-        isNew: true,
-      },
-    ],
-    "Street Food": [
-      {
-        name: "Sausage Special",
-        price: 150,
-        image: assets.pancakes,
-        description: "Split sausage with salad and special sauce",
-        rating: 4.7,
-        tags: ["Affordable", "Best Seller"],
-        isPopular: true,
-      },
-      {
-        name: "Special Sausage",
-        price: 200,
-        image: assets.pancakes,
-        description: "Traditional sausage made with meat and spices",
-        rating: 4.6,
-        tags: ["Hot Hot"],
-        isNew: true,
-      },
-      {
-        name: "Roasted Corn",
-        price: 100,
-        image: assets.pancakes,
-        description: "Roasted maize cobs with lemon-chili salt",
-        rating: 4.5,
-        tags: ["Affordable", "Hot Hot"],
-        isVegetarian: true,
-      },
-    ],
-    "Coastal Dishes": [
-      {
-        name: "Chicken Biryani",
-        price: 550,
-        image: assets.pancakes,
-        description:
-          "Spiced rice dish with chicken, potatoes and special spices",
-        rating: 4.8,
-        tags: ["Hot Hot", "Filling"],
-        isPopular: true,
-      },
-      {
-        name: "Fish in Coconut",
-        price: 750,
-        image: assets.pancakes,
-        description: "Fish in rich coconut sauce with garlic and tamarind",
-        rating: 4.9,
-        tags: ["Best Seller", "Hot Hot"],
-        isNew: true,
-      },
-      {
-        name: "Fried Bread with Peas",
-        price: 350,
-        image: assets.pancakes,
-        description:
-          "Sweet fried bread served with pigeon peas in coconut sauce",
-        rating: 4.6,
-        tags: ["Affordable", "Very Sweet"],
-        isVegetarian: true,
-      },
-    ],
-    "Local Drinks": [
-      {
-        name: "Ginger Ice",
-        price: 150,
-        image: assets.pancakes,
-        description: "Refreshing ginger drink with lime and honey",
-        rating: 4.7,
-        tags: ["Very Cold", "Best Seller"],
-        isHealthy: true,
-      },
-      {
-        name: "Passion Cocktail",
-        price: 200,
-        image: assets.pancakes,
-        description: "Passion fruit cocktail with local honey and lime",
-        rating: 4.8,
-        tags: ["Very Cold", "Very Sweet"],
-        isPopular: true,
-      },
-      {
-        name: "Tamarind Shake",
-        price: 180,
-        image: assets.pancakes,
-        description: "Tamarind drink blended with ice and brown sugar",
-        rating: 4.6,
-        tags: ["Very Cold", "Affordable"],
-        isNew: true,
-      },
-    ],
-    "Special Fries": [
-      {
-        name: "Supreme Fries",
-        price: 450,
-        image: assets.pancakes,
-        description:
-          "Our signature fries topped with minced meat, cheese and special sauce",
-        rating: 4.9,
-        tags: ["Best Seller", "Filling"],
-        isPopular: true,
-      },
-      {
-        name: "Spiced Fries",
-        price: 350,
-        image: assets.pancakes,
-        description: "Crispy fries tossed in special spices",
-        rating: 4.7,
-        tags: ["Hot Hot", "Affordable"],
-        isNew: true,
-      },
-      {
-        name: "Salad Fries",
-        price: 400,
-        image: assets.pancakes,
-        description: "Fries topped with fresh salad and avocado",
-        rating: 4.6,
-        tags: ["Affordable", "Hot Hot"],
-        isHealthy: true,
-      },
-    ],
-  };
+          // Extract unique categories
+          const uniqueCategories = ["all"];
+          response.data.data.forEach((food) => {
+            if (
+              food.category &&
+              !uniqueCategories.includes(food.category.toLowerCase())
+            ) {
+              uniqueCategories.push(food.category.toLowerCase());
+            }
+          });
+          setCategories(uniqueCategories);
+        } else {
+          setError("Unexpected API response format.");
+        }
+      } catch (err) {
+        setError("Failed to load food data.");
+      } finally {
+        setLoading(false);
+        setIsLoaded(true);
+      }
+    };
+    fetchFoods();
+  }, []);
 
-  // Star food items that rotate in the background
-  const starFoodItems = [
-    {
-      name: "Supreme Fries",
-      image: assets.tea,
-    },
-    {
-      name: "Goat Grill",
-      image: assets.pancakes,
-    },
-    {
-      name: "Chicken Biryani",
-      image: assets.pancakes,
-    },
-    {
-      name: "Ugali with Fish",
-      image: assets.avocado,
-    },
-    {
-      name: "Sausage Special",
-      image: assets.pancakes,
-    },
-    {
-      name: "Passion Cocktail",
-      image: assets.pancakes,
-    },
-  ];
-
-  // Generate star positions
-  const starPositions = Array(starFoodItems.length)
-    .fill()
-    .map(() => ({
-      top: Math.random() * 90 + 5,
-      left: Math.random() * 90 + 5,
-      size: Math.random() * 30 + 40,
-      rotation: Math.random() * 360,
-      animationDuration: Math.random() * 20 + 40,
-      delay: Math.random() * 10,
-      direction: Math.random() > 0.5 ? 1 : -1,
-    }));
-
-  // Auto-rotate star food items
+  // Auto-rotate featured items
   useEffect(() => {
     const interval = setInterval(() => {
-      setRotatingFoodIndex((prev) => (prev + 1) % starFoodItems.length);
+      setRotatingFoodIndex(
+        (prev) => (prev + 1) % (foods.length > 0 ? foods.length : 1)
+      );
     }, 8000);
     return () => clearInterval(interval);
-  }, [starFoodItems.length]);
+  }, [foods.length]);
 
-  // Page load animation
-  useEffect(() => {
+  // Handle adding to cart with animation
+  const handlePlaceOrder = (food) => {
+    if ("vibrate" in navigator) navigator.vibrate(50);
+    setAddedItem(food);
+    setShowAddAnimation(true);
     setTimeout(() => {
-      setIsLoaded(true);
-    }, 300);
-  }, []);
+      setShowAddAnimation(false);
+      setCart((prev) => [...prev, food]);
+    }, 1000);
+  };
+
+  // Toggle favorite status
+  const toggleFavorite = (foodId) => {
+    setFavorites((prev) =>
+      prev.includes(foodId)
+        ? prev.filter((id) => id !== foodId)
+        : [...prev, foodId]
+    );
+  };
 
   // Filter menu items based on search term, category, and filters
   const getFilteredMenuItems = () => {
-    let items = menuItems[activeCategory] || [];
+    let items = foods;
+
+    // Category filter
+    if (activeCategory !== "all") {
+      items = items.filter(
+        (food) => food.category.toLowerCase() === activeCategory
+      );
+    }
 
     // Search filter
     if (searchTerm) {
       items = items.filter(
         (item) =>
           item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.description.toLowerCase().includes(searchTerm.toLowerCase())
+          (item.description &&
+            item.description.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
     // Price (budget) filter
-    items = items.filter((item) => item.price <= maxBudget);
+    items = items.filter((item) => {
+      const price = item.isOnOffer ? item.offerPrice : item.price;
+      return price <= maxBudget;
+    });
 
     // Tags filter
     if (selectedTags.length > 0) {
       items = items.filter((item) =>
-        selectedTags.some((tag) => item.tags?.includes(tag))
+        selectedTags.some((tag) => {
+          if (tag === "Hot Hot") return item.isSpicy;
+          if (tag === "Very Cold") return item.isCold;
+          if (tag === "Best Seller") return item.isPopular;
+          if (tag === "Very Sweet") return item.isSweet;
+          if (tag === "Filling") return item.isFilling;
+          if (tag === "Affordable") return item.price < 500;
+          return false;
+        })
       );
     }
 
@@ -338,6 +180,7 @@ const Menu = () => {
     setMaxBudget(3000);
     setSelectedTags([]);
     setSearchTerm("");
+    setActiveCategory("all");
   };
 
   // Format price
@@ -345,46 +188,129 @@ const Menu = () => {
     return `KSh ${price}`;
   };
 
+  // Remove item from cart
+  const handleRemoveFromCart = (index) => {
+    setCart((prevCart) => prevCart.filter((_, i) => i !== index));
+  };
+
   const filteredItems = getFilteredMenuItems();
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="p-8 rounded-xl bg-white shadow-lg">
+          <div className="flex flex-col items-center">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              className="mb-4"
+            >
+              <Utensils size={32} className="text-red-900" />
+            </motion.div>
+            <div className="animate-pulse flex space-x-4">
+              <div className="rounded-full bg-red-200 h-12 w-12"></div>
+              <div className="flex-1 space-y-4 py-1">
+                <div className="h-4 bg-red-200 rounded w-3/4"></div>
+                <div className="space-y-2">
+                  <div className="h-4 bg-red-200 rounded"></div>
+                  <div className="h-4 bg-red-200 rounded w-5/6"></div>
+                </div>
+              </div>
+            </div>
+            <p className="mt-4 text-red-900 font-medium">
+              Loading the delicious menu...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="p-8 rounded-xl bg-red-50 border border-red-200">
+          <p className="text-red-600">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-red-900 text-white rounded-full hover:bg-red-800 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-20 relative w-full min-h-screen bg-gradient-to-b from-orange-50 to-white overflow-hidden py-8">
       {/* Background - Rotating Star Food Items */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {starPositions.map((pos, index) => (
+        {foods.slice(0, 6).map((food, index) => (
           <div
-            key={index}
+            key={food._id}
             className="absolute"
             style={{
-              top: `${pos.top}%`,
-              left: `${pos.left}%`,
-              transform: `rotate(${pos.rotation}deg)`,
+              top: `${Math.random() * 90 + 5}%`,
+              left: `${Math.random() * 90 + 5}%`,
+              transform: `rotate(${Math.random() * 360}deg)`,
               zIndex: 0,
               opacity: 0.07,
+              width: `${Math.random() * 30 + 40}px`,
+              height: `${Math.random() * 30 + 40}px`,
             }}
           >
             <img
-              src={starFoodItems[index % starFoodItems.length].image}
-              alt="Food background"
-              className="object-contain"
-              style={{
-                width: `${pos.size}px`,
-                height: `${pos.size}px`,
-                borderRadius: "50%",
-              }}
+              src={food.images[0]}
+              alt={food.name}
+              className="w-full h-full object-contain rounded-full"
             />
           </div>
         ))}
       </div>
 
-      {/* Pattern Background */}
-      <div
-        className="absolute inset-0 opacity-5 pointer-events-none"
-        style={{
-          backgroundImage: `url(${placeholderImages.food1})`,
-          backgroundSize: "100px",
-        }}
-      />
+      {/* Floating Cart Button */}
+      <motion.button
+        className="fixed top-6 right-6 bg-red-900 text-white p-4 rounded-full shadow-lg z-50 flex items-center justify-center hover:bg-red-800 transition-colors duration-200"
+        whileHover={{ scale: 1.05, rotate: [0, -10, 10, 0] }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setIsModalOpen(true)}
+      >
+        <ShoppingCart size={24} />
+        <AnimatePresence>
+          {cart.length > 0 && (
+            <motion.span
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              exit={{ scale: 0, rotate: 180 }}
+              className="absolute -top-2 -right-2 bg-yellow-400 text-red-900 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+            >
+              {cart.length}
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </motion.button>
+
+      {/* Add to Cart Animation */}
+      <AnimatePresence>
+        {showAddAnimation && addedItem && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, x: "-50%" }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-red-900 text-white px-6 py-3 rounded-full shadow-lg z-50 flex items-center gap-3"
+          >
+            <img
+              src={addedItem.images[0]}
+              alt={addedItem.name}
+              className="w-8 h-8 rounded-full object-cover border-2 border-white"
+            />
+            <span>Added to cart!</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="max-w-7xl mx-auto px-4 relative z-10">
         {/* Header Section with entrance animation */}
@@ -432,7 +358,8 @@ const Menu = () => {
               {/* Animated search cue */}
               {!searchTerm && (
                 <div className="absolute right-12 top-1/2 transform -translate-y-1/2 text-sm text-gray-400 pointer-events-none">
-                  Try "Grill"
+                  Try "
+                  {foods.length > 0 ? foods[0].name.split(" ")[0] : "Grill"}"
                 </div>
               )}
             </div>
@@ -541,7 +468,7 @@ const Menu = () => {
                 : "-translate-x-20 opacity-0"
             }`}
           >
-            {menuCategories.map((category) => (
+            {categories.map((category) => (
               <button
                 key={category}
                 onClick={() => handleCategoryClick(category)}
@@ -551,24 +478,9 @@ const Menu = () => {
                     : "bg-gray-100 hover:bg-gray-200 text-gray-700"
                 }`}
               >
-                <span>{category}</span>
-                {activeCategory === category && (
-                  <span className="ml-1">
-                    {category === "Grilled Meat"
-                      ? "🥩"
-                      : category === "Staple Combos"
-                      ? "🍚"
-                      : category === "Street Food"
-                      ? "🌭"
-                      : category === "Coastal Dishes"
-                      ? "🐟"
-                      : category === "Local Drinks"
-                      ? "🥤"
-                      : category === "Special Fries"
-                      ? "🍟"
-                      : "🍽️"}
-                  </span>
-                )}
+                <span>
+                  {category.charAt(0).toUpperCase() + category.slice(1)}
+                </span>
               </button>
             ))}
           </div>
@@ -595,7 +507,7 @@ const Menu = () => {
 
               {/* Category List */}
               <div className="py-4">
-                {menuCategories.map((category) => (
+                {categories.map((category) => (
                   <button
                     key={category}
                     onClick={() => handleCategoryClick(category)}
@@ -605,21 +517,19 @@ const Menu = () => {
                         : "hover:bg-gray-50 text-gray-700"
                     }`}
                   >
-                    <span>{category}</span>
+                    <span>
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </span>
                     {activeCategory === category && (
                       <span className="text-lg">
-                        {category === "Grilled Meat"
+                        {category === "meat"
                           ? "🥩"
-                          : category === "Staple Combos"
-                          ? "🍚"
-                          : category === "Street Food"
-                          ? "🌭"
-                          : category === "Coastal Dishes"
+                          : category === "vegetarian"
+                          ? "🥗"
+                          : category === "seafood"
                           ? "🐟"
-                          : category === "Local Drinks"
+                          : category === "drinks"
                           ? "🥤"
-                          : category === "Special Fries"
-                          ? "🍟"
                           : "🍽️"}
                       </span>
                     )}
@@ -628,27 +538,45 @@ const Menu = () => {
               </div>
 
               {/* Featured Item */}
-              <div className="p-4 bg-gradient-to-br from-orange-100 to-yellow-100">
-                <div className="text-center">
-                  <div className="mb-2 text-sm font-semibold text-orange-600">
-                    Today's Special
-                  </div>
-                  <div className="relative inline-block">
-                    <img
-                      src={starFoodItems[rotatingFoodIndex].image}
-                      alt={starFoodItems[rotatingFoodIndex].name}
-                      className="h-24 w-24 object-cover rounded-full mx-auto border-2 border-orange-300"
-                    />
-                    <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1">
-                      HOT!
+              {foods.length > 0 && (
+                <div className="p-4 bg-gradient-to-br from-orange-100 to-yellow-100">
+                  <div className="text-center">
+                    <div className="mb-2 text-sm font-semibold text-orange-600">
+                      Today's Special
+                    </div>
+                    <div className="relative inline-block">
+                      <img
+                        src={foods[rotatingFoodIndex % foods.length].images[0]}
+                        alt={foods[rotatingFoodIndex % foods.length].name}
+                        className="h-24 w-24 object-cover rounded-full mx-auto border-2 border-orange-300"
+                      />
+                      <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1">
+                        HOT!
+                      </div>
+                    </div>
+                    <div className="mt-2 font-medium">
+                      {foods[rotatingFoodIndex % foods.length].name}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {foods[rotatingFoodIndex % foods.length].isOnOffer ? (
+                        <>
+                          <span className="line-through text-gray-500 mr-2">
+                            KSh {foods[rotatingFoodIndex % foods.length].price}
+                          </span>
+                          <span className="text-red-900 font-bold">
+                            KSh{" "}
+                            {foods[rotatingFoodIndex % foods.length].offerPrice}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-red-900 font-bold">
+                          KSh {foods[rotatingFoodIndex % foods.length].price}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="mt-2 font-medium">
-                    {starFoodItems[rotatingFoodIndex].name}
-                  </div>
-                  <div className="text-sm text-gray-600">Today's Special</div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -664,7 +592,10 @@ const Menu = () => {
             <div className="bg-white rounded-t-2xl shadow-lg p-6 border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-gray-800">
-                  {activeCategory}
+                  {activeCategory === "all"
+                    ? "All Menu Items"
+                    : activeCategory.charAt(0).toUpperCase() +
+                      activeCategory.slice(1)}
                   <span className="ml-2 text-gray-500 text-lg font-normal">
                     ({filteredItems.length} items)
                   </span>
@@ -672,19 +603,15 @@ const Menu = () => {
 
                 {/* Custom Message for Category */}
                 <div className="bg-orange-100 text-orange-800 px-4 py-1 rounded-full text-sm font-medium">
-                  {activeCategory === "Grilled Meat"
+                  {activeCategory === "meat"
                     ? "Hot Grilled Meat!"
-                    : activeCategory === "Staple Combos"
-                    ? "Fresh Staples!"
-                    : activeCategory === "Street Food"
-                    ? "Street Flavor!"
-                    : activeCategory === "Coastal Dishes"
+                    : activeCategory === "vegetarian"
+                    ? "Fresh Veggies!"
+                    : activeCategory === "seafood"
                     ? "Coastal Special!"
-                    : activeCategory === "Local Drinks"
+                    : activeCategory === "drinks"
                     ? "Very Cold!"
-                    : activeCategory === "Special Fries"
-                    ? "Special Fries!"
-                    : "Welcome to Menu!"}
+                    : "Delicious Options!"}
                 </div>
               </div>
 
@@ -712,7 +639,7 @@ const Menu = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 p-6 gap-6">
                 {filteredItems.map((item, index) => (
                   <div
-                    key={index}
+                    key={item._id}
                     className={`bg-white rounded-xl overflow-hidden transition-all duration-300 ${
                       hoveredItem === index
                         ? "shadow-xl transform -translate-y-1"
@@ -724,7 +651,7 @@ const Menu = () => {
                     {/* Food Image with Steam Effect */}
                     <div className="relative h-48 overflow-hidden">
                       <img
-                        src={item.image}
+                        src={item.images[0]}
                         alt={item.name}
                         className="w-full h-full object-cover transition-transform duration-700 ease-in-out"
                         style={{
@@ -736,28 +663,48 @@ const Menu = () => {
                       {/* Overlay gradient */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-60"></div>
 
+                      {/* Favorite Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite(item._id);
+                        }}
+                        className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-md z-10"
+                      >
+                        <Heart
+                          size={16}
+                          className={
+                            favorites.includes(item._id)
+                              ? "fill-red-900 text-red-900"
+                              : "text-gray-400"
+                          }
+                        />
+                      </button>
+
                       {/* Special Tags */}
                       <div className="absolute top-4 left-4 flex flex-col space-y-2">
-                        {item.isNew && (
+                        {item.isOnOffer && (
                           <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                            NEW!
-                          </span>
-                        )}
-                        {item.isPopular && !item.isNew && (
-                          <span className="bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                            POPULAR!
-                          </span>
-                        )}
-                        {item.isHealthy && !item.isNew && !item.isPopular && (
-                          <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                            HEALTHY!
+                            {Math.round(
+                              (1 - item.offerPrice / item.price) * 100
+                            )}
+                            % OFF
                           </span>
                         )}
                       </div>
 
                       {/* Item price */}
                       <div className="absolute bottom-4 right-4 bg-white/90 text-red-900 font-bold px-3 py-1 rounded-full shadow-lg">
-                        {formatPrice(item.price)}
+                        {item.isOnOffer ? (
+                          <>
+                            <span className="line-through text-xs mr-1 text-gray-500">
+                              KSh {item.price}
+                            </span>
+                            KSh {item.offerPrice}
+                          </>
+                        ) : (
+                          `KSh ${item.price}`
+                        )}
                       </div>
 
                       {/* Item name */}
@@ -775,7 +722,7 @@ const Menu = () => {
                             <Star
                               key={i}
                               className={`w-4 h-4 ${
-                                i < Math.floor(item.rating)
+                                i < Math.floor(item.rating || 4.5)
                                   ? "text-yellow-400 fill-yellow-400"
                                   : "text-gray-300"
                               }`}
@@ -783,7 +730,7 @@ const Menu = () => {
                           ))}
                         </div>
                         <span className="ml-2 text-sm text-gray-600">
-                          {item.rating}
+                          {item.rating || 4.5}
                         </span>
                         <span className="ml-1 flex items-center text-gray-500">
                           <ThumbsUp className="w-3 h-3 mr-1" />
@@ -800,33 +747,34 @@ const Menu = () => {
 
                       {/* Tags */}
                       <div className="flex flex-wrap gap-2 mb-3">
-                        {item.tags?.map((tag) => (
-                          <span
-                            key={tag}
-                            className={`px-2 py-1 rounded-full text-xs ${
-                              tag === "Hot Hot"
-                                ? "bg-red-100 text-red-600"
-                                : tag === "Very Cold"
-                                ? "bg-blue-100 text-blue-600"
-                                : tag === "Best Seller"
-                                ? "bg-yellow-100 text-yellow-700"
-                                : tag === "Very Sweet"
-                                ? "bg-pink-100 text-pink-600"
-                                : tag === "Filling"
-                                ? "bg-green-100 text-green-600"
-                                : tag === "Affordable"
-                                ? "bg-purple-100 text-purple-600"
-                                : "bg-gray-100 text-gray-600"
-                            }`}
-                          >
-                            {tag}
+                        {item.category && (
+                          <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
+                            {item.category}
                           </span>
-                        ))}
+                        )}
+                        {item.isSpicy && (
+                          <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-600">
+                            Hot Hot
+                          </span>
+                        )}
+                        {item.isCold && (
+                          <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-600">
+                            Very Cold
+                          </span>
+                        )}
+                        {item.price < 500 && (
+                          <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-600">
+                            Affordable
+                          </span>
+                        )}
                       </div>
 
                       {/* Order Button */}
                       <div className="flex justify-between items-center">
-                        <button className="flex items-center bg-red-900 hover:bg-red-800 text-white px-4 py-2 rounded-full transition-colors text-sm">
+                        <button
+                          onClick={() => handlePlaceOrder(item)}
+                          className="flex items-center bg-red-900 hover:bg-red-800 text-white px-4 py-2 rounded-full transition-colors text-sm"
+                        >
                           <PlusCircle className="w-4 h-4 mr-1" />
                           Add to Order
                         </button>
@@ -894,6 +842,203 @@ const Menu = () => {
           </div>
         </div>
       </div>
+
+      {/* Cart Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <>
+            <motion.div
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9998]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsModalOpen(false)}
+            />
+
+            <motion.div
+              className={`fixed bottom-0 left-0 w-full max-h-[80vh] rounded-t-lg bg-white shadow-2xl p-6 overflow-y-auto z-[9999]`}
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-red-900">Your Order</h2>
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors duration-200"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {cart.length > 0 ? (
+                <>
+                  <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                    {cart.map((food, index) => (
+                      <motion.div
+                        key={index}
+                        className="flex items-center gap-4 bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-colors duration-200 group relative"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                      >
+                        <img
+                          src={food.images[0]}
+                          alt={food.name}
+                          className="w-20 h-20 object-cover rounded-lg shadow-md"
+                        />
+                        <div className="flex-1">
+                          <p className="text-base font-semibold text-gray-800">
+                            {food.name}
+                          </p>
+                          <p className="text-red-900 text-lg font-bold">
+                            KSh. {food.isOnOffer ? food.offerPrice : food.price}
+                          </p>
+                        </div>
+                        <motion.button
+                          onClick={() => handleRemoveFromCart(index)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity absolute -right-2 -top-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs hover:bg-red-600 shadow-md"
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <X size={12} />
+                        </motion.button>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  <motion.div
+                    className="mt-6 border-t border-gray-200 pt-4"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    {/* Order Summary */}
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Subtotal ({cart.length} items)</span>
+                        <span className="font-medium text-gray-800">
+                          KSh.{" "}
+                          {cart.reduce(
+                            (total, food) =>
+                              total +
+                              (food.isOnOffer ? food.offerPrice : food.price),
+                            0
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Delivery Fee</span>
+                        <span className="font-medium text-gray-800">
+                          KSh. 150
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Service Fee</span>
+                        <span className="font-medium text-gray-800">
+                          KSh. 50
+                        </span>
+                      </div>
+
+                      <div className="h-px bg-gray-200 my-3"></div>
+
+                      <div className="flex justify-between font-bold text-lg">
+                        <span className="text-gray-800">Total</span>
+                        <span className="text-red-900">
+                          KSh.{" "}
+                          {cart.reduce(
+                            (total, food) =>
+                              total +
+                              (food.isOnOffer ? food.offerPrice : food.price),
+                            0
+                          ) + 200}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Estimated Delivery Time */}
+                    <div className="mt-4 p-4 bg-amber-50 rounded-lg flex items-center gap-3 border border-amber-100">
+                      <Clock size={20} className="text-amber-500" />
+                      <div>
+                        <p className="font-medium text-gray-800">
+                          Estimated Delivery
+                        </p>
+                        <p className="text-gray-600 text-sm">25-40 minutes</p>
+                      </div>
+                    </div>
+
+                    {/* Checkout Button */}
+                    <motion.button
+                      className="w-full mt-6 py-4 bg-red-900 rounded-lg text-white font-bold uppercase shadow-lg hover:bg-red-800"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        const token = localStorage.getItem("token");
+                        if (token) {
+                          const totalAmount =
+                            cart.reduce(
+                              (total, food) =>
+                                total +
+                                (food.isOnOffer ? food.offerPrice : food.price),
+                              0
+                            ) + 200;
+                          navigate("/checkout", {
+                            state: {
+                              cart: cart,
+                              total: totalAmount,
+                            },
+                          });
+                        } else {
+                          navigate("/login");
+                        }
+                      }}
+                    >
+                      Complete Order
+                    </motion.button>
+
+                    {/* Security Notice */}
+                    <p className="text-center text-xs text-gray-500 mt-4 flex items-center justify-center gap-2">
+                      <span>🔒</span>
+                      Secure payment processing
+                    </p>
+                  </motion.div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{
+                      scale: 1,
+                      rotate: [0, 10, -10, 10, 0],
+                    }}
+                    transition={{ duration: 0.5 }}
+                    className="mb-6"
+                  >
+                    <ShoppingCart size={48} className="text-gray-300" />
+                  </motion.div>
+                  <h3 className="text-xl font-bold text-gray-700 mb-2">
+                    Your cart is empty
+                  </h3>
+                  <p className="text-gray-500 text-center mb-6">
+                    Looks like you haven't added anything to your cart yet
+                  </p>
+                  <motion.button
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-6 py-3 bg-red-900 text-white rounded-lg font-medium hover:bg-red-800 transition-colors"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    Browse Menu
+                  </motion.button>
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
