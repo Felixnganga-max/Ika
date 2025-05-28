@@ -9,6 +9,8 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Minus,
+  Plus,
 } from "lucide-react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -27,7 +29,37 @@ const FoodSlider = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [categories, setCategories] = useState(["all"]);
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
+
+  // Get user from localStorage on component mount
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch (error) {
+        console.error("Error parsing user data:", error);
+      }
+    }
+  }, []);
+
+  // Load cart from localStorage on component mount
+  useEffect(() => {
+    const savedCart = localStorage.getItem("cart");
+    if (savedCart) {
+      try {
+        setCart(JSON.parse(savedCart));
+      } catch (error) {
+        console.error("Error parsing cart data:", error);
+      }
+    }
+  }, []);
+
+  // Save cart to localStorage whenever cart changes
+  useEffect(() => {
+    localStorage.setItem("cart", JSON.stringify(cart));
+  }, [cart]);
 
   // Check screen size
   useEffect(() => {
@@ -70,14 +102,52 @@ const FoodSlider = () => {
     fetchFoods();
   }, []);
 
-  // Handle adding to cart with animation
-  const handlePlaceOrder = (food) => {
+  // Add item to cart via API (for logged-in users)
+  const addToCartAPI = async (itemId, userId) => {
+    try {
+      const response = await axios.post("http://localhost:4000/api/cart/add", {
+        itemId: itemId,
+        userId: userId,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error adding to cart via API:", error);
+      // If API fails, we'll still add to localStorage
+      return null;
+    }
+  };
+
+  // Handle adding to cart with animation and persistence
+  const handlePlaceOrder = async (food) => {
     if ("vibrate" in navigator) navigator.vibrate(50);
+
+    // Check if item already exists in cart
+    const existingItemIndex = cart.findIndex((item) => item._id === food._id);
+
+    if (existingItemIndex > -1) {
+      // If item exists, increase quantity
+      const updatedCart = [...cart];
+      updatedCart[existingItemIndex] = {
+        ...updatedCart[existingItemIndex],
+        quantity: (updatedCart[existingItemIndex].quantity || 1) + 1,
+      };
+      setCart(updatedCart);
+    } else {
+      // If new item, add to cart with quantity 1
+      const newItem = { ...food, quantity: 1 };
+      setCart((prev) => [...prev, newItem]);
+    }
+
+    // If user is logged in, also add to database
+    if (user && user.id) {
+      await addToCartAPI(food._id, user.id);
+    }
+
+    // Show animation
     setAddedItem(food);
     setShowAddAnimation(true);
     setTimeout(() => {
       setShowAddAnimation(false);
-      setCart((prev) => [...prev, food]);
     }, 1000);
   };
 
@@ -116,7 +186,40 @@ const FoodSlider = () => {
 
   // Remove item from cart
   const handleRemoveFromCart = (index) => {
-    setCart((prevCart) => prevCart.filter((_, i) => i !== index));
+    const updatedCart = cart.filter((_, i) => i !== index);
+    setCart(updatedCart);
+  };
+
+  // Update item quantity in cart
+  const updateQuantity = (index, newQuantity) => {
+    if (newQuantity <= 0) {
+      handleRemoveFromCart(index);
+      return;
+    }
+
+    const updatedCart = [...cart];
+    updatedCart[index] = { ...updatedCart[index], quantity: newQuantity };
+    setCart(updatedCart);
+  };
+
+  // Get total cart quantity
+  const getTotalCartQuantity = () => {
+    return cart.reduce((total, item) => total + (item.quantity || 1), 0);
+  };
+
+  // Get cart total price
+  const getCartTotal = () => {
+    return cart.reduce((total, item) => {
+      const price = item.isOnOffer ? item.offerPrice : item.price;
+      const quantity = item.quantity || 1;
+      return total + price * quantity;
+    }, 0);
+  };
+
+  // Clear cart
+  const clearCart = () => {
+    setCart([]);
+    localStorage.removeItem("cart");
   };
 
   // Filter foods by category
@@ -174,20 +277,6 @@ const FoodSlider = () => {
     );
   }
 
-  // Color theme
-  const colors = {
-    primary: "bg-red-900", // burgundy/dark red
-    primaryHover: "hover:bg-red-800",
-    primaryText: "text-red-900",
-    secondary: "bg-orange-500", // orange
-    secondaryHover: "hover:bg-orange-600",
-    secondaryText: "text-orange-500",
-    light: "bg-white",
-    dark: "bg-black",
-    darkText: "text-black",
-    lightText: "text-white",
-  };
-
   return (
     <div className="w-full pt-12 bg-gray-100 dark:bg-gray-900 min-h-screen relative overflow-hidden">
       {/* Header */}
@@ -203,6 +292,11 @@ const FoodSlider = () => {
             Delicious Food Haven
             <span className="text-orange-500">✨</span>
           </h1>
+          {user && (
+            <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-2">
+              Welcome back, {user.name}!
+            </p>
+          )}
         </motion.div>
       </div>
 
@@ -222,7 +316,7 @@ const FoodSlider = () => {
               exit={{ scale: 0, rotate: 180 }}
               className="absolute -top-2 -right-2 bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
             >
-              {cart.length}
+              {getTotalCartQuantity()}
             </motion.span>
           )}
         </AnimatePresence>
@@ -611,12 +705,22 @@ const FoodSlider = () => {
                 <h2 className="text-2xl font-bold text-red-900 dark:text-white">
                   Your Order
                 </h2>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors duration-200"
-                >
-                  <X size={20} />
-                </button>
+                <div className="flex gap-2">
+                  {cart.length > 0 && (
+                    <button
+                      onClick={clearCart}
+                      className="text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-full transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setIsModalOpen(false)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors duration-200"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
 
               {cart.length > 0 ? (
@@ -624,86 +728,110 @@ const FoodSlider = () => {
                   <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                     {cart.map((food, index) => (
                       <motion.div
-                        key={index}
-                        className="flex items-center gap-4 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200 group relative"
+                        key={`${food._id}-${index}`}
+                        className="flex items-center gap-4 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200 group"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.3 }}
                       >
                         <img
                           src={food.images[0]}
                           alt={food.name}
-                          className="w-20 h-20 object-cover rounded-lg shadow-md"
+                          className="w-16 h-16 object-cover rounded-lg border-2 border-gray-300 dark:border-gray-600 group-hover:scale-105 transition-transform duration-200"
                         />
                         <div className="flex-1">
-                          <p className="text-base font-semibold text-gray-800 dark:text-white">
+                          <h3 className="font-semibold text-gray-800 dark:text-white text-sm">
                             {food.name}
+                          </h3>
+                          <p className="text-gray-600 dark:text-gray-400 text-xs">
+                            {food.category}
                           </p>
-                          <p className="text-red-900 dark:text-orange-500 text-lg font-bold">
-                            KSh. {food.isOnOffer ? food.offerPrice : food.price}
-                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-red-900 dark:text-orange-500 font-bold text-sm">
+                              KSh.{" "}
+                              {food.isOnOffer ? food.offerPrice : food.price}
+                            </span>
+                            {food.isOnOffer && (
+                              <span className="text-gray-500 dark:text-gray-400 line-through text-xs">
+                                KSh. {food.price}
+                              </span>
+                            )}
+                          </div>
                         </div>
+
+                        {/* Quantity Controls */}
+                        <div className="flex items-center gap-2">
+                          <motion.button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateQuantity(index, (food.quantity || 1) - 1);
+                            }}
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-600 hover:bg-red-100 dark:hover:bg-red-800 text-gray-700 dark:text-gray-300 hover:text-red-900 dark:hover:text-white transition-colors"
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                          >
+                            <Minus size={16} />
+                          </motion.button>
+
+                          <span className="w-8 text-center font-semibold text-gray-800 dark:text-white">
+                            {food.quantity || 1}
+                          </span>
+
+                          <motion.button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateQuantity(index, (food.quantity || 1) + 1);
+                            }}
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-600 hover:bg-green-100 dark:hover:bg-green-800 text-gray-700 dark:text-gray-300 hover:text-green-900 dark:hover:text-white transition-colors"
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                          >
+                            <Plus size={16} />
+                          </motion.button>
+                        </div>
+
+                        {/* Remove Button */}
                         <motion.button
-                          onClick={() => handleRemoveFromCart(index)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity absolute -right-2 -top-2 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs hover:bg-red-700 shadow-md"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveFromCart(index);
+                          }}
+                          className="w-8 h-8 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900 hover:bg-red-200 dark:hover:bg-red-800 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors opacity-0 group-hover:opacity-100"
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                         >
-                          <X size={12} />
+                          <X size={16} />
                         </motion.button>
                       </motion.div>
                     ))}
                   </div>
 
-                  <motion.div
-                    className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    {/* Order Summary */}
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                        <span>Subtotal ({cart.length} items)</span>
-                        <span className="font-medium text-gray-800 dark:text-gray-300">
-                          KSh.{" "}
-                          {cart.reduce(
-                            (total, food) =>
-                              total +
-                              (food.isOnOffer ? food.offerPrice : food.price),
-                            0
-                          )}
+                  {/* Cart Summary */}
+                  <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
+                    <div className="space-y-3 mb-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Items ({getTotalCartQuantity()})
+                        </span>
+                        <span className="text-sm font-medium text-gray-800 dark:text-white">
+                          KSh. {getCartTotal().toFixed(2)}
                         </span>
                       </div>
-
-                      <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                        <span>Delivery Fee</span>
-                        <span className="font-medium text-gray-800 dark:text-gray-300">
-                          KSh. 150
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Delivery Fee
+                        </span>
+                        <span className="text-sm font-medium text-gray-800 dark:text-white">
+                          KSh. 50.00
                         </span>
                       </div>
-
-                      <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                        <span>Service Fee</span>
-                        <span className="font-medium text-gray-800 dark:text-gray-300">
-                          KSh. 50
-                        </span>
-                      </div>
-
-                      <div className="h-px bg-gray-200 dark:bg-gray-700 my-3"></div>
-
-                      <div className="flex justify-between font-bold text-lg">
-                        <span className="text-gray-800 dark:text-white">
+                      <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-600">
+                        <span className="font-semibold text-gray-800 dark:text-white">
                           Total
                         </span>
-                        <span className="text-red-900 dark:text-orange-500">
-                          KSh.{" "}
-                          {cart.reduce(
-                            (total, food) =>
-                              total +
-                              (food.isOnOffer ? food.offerPrice : food.price),
-                            0
-                          ) + 200}
+                        <span className="font-bold text-xl text-red-900 dark:text-orange-500">
+                          KSh. {(getCartTotal() + 50).toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -711,42 +839,54 @@ const FoodSlider = () => {
                     {/* Checkout Button */}
                     <motion.button
                       onClick={() => {
-                        setIsModalOpen(false);
-                        navigate("/checkout", { state: { cart } });
+                        // Handle checkout logic here
+                        alert(
+                          `Proceeding to checkout with ${getTotalCartQuantity()} items worth KSh. ${(
+                            getCartTotal() + 50
+                          ).toFixed(2)}`
+                        );
                       }}
-                      className="w-full bg-red-900 text-white py-4 px-6 rounded-lg shadow-md font-bold text-lg mt-6 hover:bg-red-800 transition-colors"
+                      className="w-full bg-red-900 text-white py-4 px-6 rounded-lg shadow-md font-bold text-lg hover:bg-red-800 transition-colors flex items-center justify-center gap-2"
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                     >
+                      <ShoppingCart size={20} />
                       Proceed to Checkout
                     </motion.button>
-                  </motion.div>
+
+                    {/* Continue Shopping Button */}
+                    <motion.button
+                      onClick={() => setIsModalOpen(false)}
+                      className="w-full mt-3 bg-transparent border-2 border-red-900 text-red-900 dark:text-orange-500 dark:border-orange-500 py-3 px-6 rounded-lg font-medium hover:bg-red-900 hover:text-white dark:hover:bg-orange-500 dark:hover:text-white transition-colors"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      Continue Shopping
+                    </motion.button>
+                  </div>
                 </>
               ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="text-center py-12">
                   <motion.div
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: "spring" }}
+                    className="text-6xl mb-4"
+                    animate={{ rotate: [0, -10, 10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity }}
                   >
-                    <ShoppingCart
-                      size={64}
-                      className="text-gray-300 dark:text-gray-600 mb-4"
-                    />
+                    🛒
                   </motion.div>
-                  <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
+                  <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
                     Your cart is empty
                   </h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  <p className="text-gray-600 dark:text-gray-300 mb-6">
                     Add some delicious items to get started!
                   </p>
                   <motion.button
                     onClick={() => setIsModalOpen(false)}
-                    className="bg-red-900 text-white py-3 px-6 rounded-lg shadow-md font-medium hover:bg-red-800 transition-colors"
+                    className="px-6 py-3 bg-red-900 text-white rounded-lg font-medium hover:bg-red-800 transition-colors"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    Browse Menu
+                    Continue Shopping
                   </motion.button>
                 </div>
               )}
@@ -754,10 +894,6 @@ const FoodSlider = () => {
           </>
         )}
       </AnimatePresence>
-
-      {/* Decorative Elements */}
-      <div className="fixed -bottom-24 -left-24 w-64 h-64 bg-red-900/10 dark:bg-red-900/20 rounded-full blur-3xl z-0"></div>
-      <div className="fixed -top-32 -right-32 w-96 h-96 bg-orange-500/10 dark:bg-orange-500/20 rounded-full blur-3xl z-0"></div>
     </div>
   );
 };
