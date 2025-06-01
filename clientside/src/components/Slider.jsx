@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShoppingCart,
@@ -11,8 +11,8 @@ import {
   ChevronRight,
   Minus,
   Plus,
+  User,
 } from "lucide-react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 const FoodSlider = () => {
@@ -30,36 +30,46 @@ const FoodSlider = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [categories, setCategories] = useState(["all"]);
   const [user, setUser] = useState(null);
+  const [cartLoading, setCartLoading] = useState(false);
+  const [token, setToken] = useState(null);
+  const menuRef = useRef(null);
   const navigate = useNavigate();
 
-  // Get user from localStorage on component mount
+  // Base API URL
+  const API_BASE_URL = "http://localhost:4000/api";
+
+  // Get authentication token and user from localStorage on component mount
   useEffect(() => {
+    const authToken = localStorage.getItem("token");
     const userData = localStorage.getItem("user");
+
+    console.log("Token from localStorage:", authToken);
+    console.log("User data from localStorage:", userData);
+
+    if (authToken) {
+      setToken(authToken);
+    }
+
     if (userData) {
       try {
-        setUser(JSON.parse(userData));
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
       } catch (error) {
         console.error("Error parsing user data:", error);
       }
     }
   }, []);
 
-  // Load cart from localStorage on component mount
-  useEffect(() => {
-    const savedCart = localStorage.getItem("cart");
-    if (savedCart) {
-      try {
-        setCart(JSON.parse(savedCart));
-      } catch (error) {
-        console.error("Error parsing cart data:", error);
-      }
-    }
-  }, []);
+  // Check if user is authenticated
+  const isUserAuthenticated = () => {
+    return token && user && (user.id || user._id);
+  };
 
-  // Save cart to localStorage whenever cart changes
-  useEffect(() => {
-    localStorage.setItem("cart", JSON.stringify(cart));
-  }, [cart]);
+  // Get user ID from user object
+  const getUserId = () => {
+    if (!user) return null;
+    return user.id || user._id || null;
+  };
 
   // Check screen size
   useEffect(() => {
@@ -73,15 +83,18 @@ const FoodSlider = () => {
   useEffect(() => {
     const fetchFoods = async () => {
       try {
-        const response = await axios.get(
-          "https://ika-cua5-backend.vercel.app/api/food/"
-        );
-        if (response.data && Array.isArray(response.data.data)) {
-          setFoods(response.data.data);
+        console.log("Fetching foods from API...");
+        const response = await fetch(`${API_BASE_URL}/food/`);
+        const data = await response.json();
+
+        console.log("Foods API response:", data);
+
+        if (data && Array.isArray(data.data)) {
+          setFoods(data.data);
 
           // Extract unique categories
           const uniqueCategories = ["all"];
-          response.data.data.forEach((food) => {
+          data.data.forEach((food) => {
             if (
               food.category &&
               !uniqueCategories.includes(food.category.toLowerCase())
@@ -94,6 +107,7 @@ const FoodSlider = () => {
           setError("Unexpected API response format.");
         }
       } catch (err) {
+        console.error("Error fetching foods:", err);
         setError("Failed to load food data.");
       } finally {
         setLoading(false);
@@ -102,17 +116,130 @@ const FoodSlider = () => {
     fetchFoods();
   }, []);
 
-  // Add item to cart via API (for logged-in users)
-  const addToCartAPI = async (itemId, userId) => {
+  // Load cart from localStorage and API on component mount
+  useEffect(() => {
+    const loadCart = async () => {
+      if (isUserAuthenticated()) {
+        console.log("Loading cart from API for authenticated user");
+        await fetchCartFromAPI();
+      } else {
+        console.log("Loading cart from localStorage for guest user");
+        const savedCart = localStorage.getItem("guestCart");
+        if (savedCart) {
+          try {
+            const parsedCart = JSON.parse(savedCart);
+            setCart(parsedCart);
+          } catch (error) {
+            console.error("Error parsing guest cart data:", error);
+          }
+        }
+      }
+    };
+
+    if (foods.length > 0) {
+      loadCart();
+    }
+  }, [user, token, foods]);
+
+  // Save guest cart to localStorage whenever cart changes
+  useEffect(() => {
+    if (!isUserAuthenticated() && cart.length >= 0) {
+      localStorage.setItem("guestCart", JSON.stringify(cart));
+    }
+  }, [cart, user, token]);
+
+  // Fetch cart items from API
+  const fetchCartFromAPI = async () => {
+    if (!isUserAuthenticated()) {
+      console.log("User not authenticated, skipping cart fetch");
+      return;
+    }
+
+    setCartLoading(true);
     try {
-      const response = await axios.post("http://localhost:4000/api/cart/add", {
-        itemId: itemId,
-        userId: userId,
+      console.log("Fetching cart with token:", token);
+      const response = await fetch(`${API_BASE_URL}/cart/get`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       });
-      return response.data;
+
+      const data = await response.json();
+      console.log("Cart API response:", data);
+
+      if (data.success && data.cartData) {
+        const cartData = data.cartData;
+        const cartItems = [];
+
+        for (const [itemId, quantity] of Object.entries(cartData)) {
+          const foodItem = foods.find((food) => food._id === itemId);
+          if (foodItem) {
+            cartItems.push({ ...foodItem, quantity });
+          }
+        }
+
+        console.log("Processed cart items:", cartItems);
+        setCart(cartItems);
+      } else {
+        console.log("No cart data found or API error:", data);
+      }
+    } catch (error) {
+      console.error("Error fetching cart from API:", error);
+    } finally {
+      setCartLoading(false);
+    }
+  };
+
+  // Add item to cart via API
+  const addToCartAPI = async (itemId) => {
+    if (!isUserAuthenticated()) {
+      console.log("User not authenticated, cannot add to cart via API");
+      return null;
+    }
+
+    try {
+      console.log("Adding item to cart via API:", itemId, "with token:", token);
+      const response = await fetch(`${API_BASE_URL}/cart/add`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ itemId }),
+      });
+
+      const data = await response.json();
+      console.log("Add to cart API response:", data);
+      return data;
     } catch (error) {
       console.error("Error adding to cart via API:", error);
-      // If API fails, we'll still add to localStorage
+      return null;
+    }
+  };
+
+  // Remove item from cart via API
+  const removeFromCartAPI = async (itemId) => {
+    if (!isUserAuthenticated()) {
+      console.log("User not authenticated, cannot remove from cart via API");
+      return null;
+    }
+
+    try {
+      console.log("Removing item from cart via API:", itemId);
+      const response = await fetch(`${API_BASE_URL}/cart/remove/${itemId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+      console.log("Remove from cart API response:", data);
+      return data;
+    } catch (error) {
+      console.error("Error removing from cart via API:", error);
       return null;
     }
   };
@@ -121,11 +248,40 @@ const FoodSlider = () => {
   const handlePlaceOrder = async (food) => {
     if ("vibrate" in navigator) navigator.vibrate(50);
 
-    // Check if item already exists in cart
+    console.log(
+      "Adding to cart:",
+      food.name,
+      "- User authenticated:",
+      isUserAuthenticated()
+    );
+
+    if (isUserAuthenticated()) {
+      console.log("Using API to add to cart");
+      const result = await addToCartAPI(food._id);
+      if (result && result.success) {
+        console.log("Successfully added to cart via API");
+        await fetchCartFromAPI();
+      } else {
+        console.log("API failed, falling back to local cart");
+        updateLocalCart(food);
+      }
+    } else {
+      console.log("Using local cart");
+      updateLocalCart(food);
+    }
+
+    setAddedItem(food);
+    setShowAddAnimation(true);
+    setTimeout(() => {
+      setShowAddAnimation(false);
+    }, 1000);
+  };
+
+  // Update local cart (for non-logged in users or API fallback)
+  const updateLocalCart = (food) => {
     const existingItemIndex = cart.findIndex((item) => item._id === food._id);
 
     if (existingItemIndex > -1) {
-      // If item exists, increase quantity
       const updatedCart = [...cart];
       updatedCart[existingItemIndex] = {
         ...updatedCart[existingItemIndex],
@@ -133,22 +289,87 @@ const FoodSlider = () => {
       };
       setCart(updatedCart);
     } else {
-      // If new item, add to cart with quantity 1
       const newItem = { ...food, quantity: 1 };
       setCart((prev) => [...prev, newItem]);
     }
+  };
 
-    // If user is logged in, also add to database
-    if (user && user.id) {
-      await addToCartAPI(food._id, user.id);
+  // Remove item from cart
+  const handleRemoveFromCart = async (index) => {
+    const item = cart[index];
+
+    if (isUserAuthenticated()) {
+      const result = await removeFromCartAPI(item._id);
+      if (result && result.success) {
+        await fetchCartFromAPI();
+      } else {
+        const updatedCart = cart.filter((_, i) => i !== index);
+        setCart(updatedCart);
+      }
+    } else {
+      const updatedCart = cart.filter((_, i) => i !== index);
+      setCart(updatedCart);
+    }
+  };
+
+  // Update item quantity in cart
+  const updateQuantity = async (index, newQuantity) => {
+    if (newQuantity <= 0) {
+      handleRemoveFromCart(index);
+      return;
     }
 
-    // Show animation
-    setAddedItem(food);
-    setShowAddAnimation(true);
-    setTimeout(() => {
-      setShowAddAnimation(false);
-    }, 1000);
+    const item = cart[index];
+
+    if (isUserAuthenticated()) {
+      const currentQuantity = item.quantity || 1;
+      const difference = newQuantity - currentQuantity;
+
+      if (difference > 0) {
+        for (let i = 0; i < difference; i++) {
+          await addToCartAPI(item._id);
+        }
+      } else if (difference < 0) {
+        for (let i = 0; i < Math.abs(difference); i++) {
+          await removeFromCartAPI(item._id);
+        }
+      }
+
+      await fetchCartFromAPI();
+    } else {
+      const updatedCart = [...cart];
+      updatedCart[index] = { ...updatedCart[index], quantity: newQuantity };
+      setCart(updatedCart);
+    }
+  };
+
+  // Get total cart quantity
+  const getTotalCartQuantity = () => {
+    return cart.reduce((total, item) => total + (item.quantity || 1), 0);
+  };
+
+  // Get cart total price
+  const getCartTotal = () => {
+    return cart.reduce((total, item) => {
+      const price = item.isOnOffer ? item.offerPrice : item.price;
+      const quantity = item.quantity || 1;
+      return total + price * quantity;
+    }, 0);
+  };
+
+  // Clear cart
+  const clearCart = async () => {
+    if (isUserAuthenticated()) {
+      for (const item of cart) {
+        for (let i = 0; i < (item.quantity || 1); i++) {
+          await removeFromCartAPI(item._id);
+        }
+      }
+      await fetchCartFromAPI();
+    } else {
+      setCart([]);
+      localStorage.removeItem("guestCart");
+    }
   };
 
   // Toggle favorite status
@@ -184,44 +405,16 @@ const FoodSlider = () => {
     );
   };
 
-  // Remove item from cart
-  const handleRemoveFromCart = (index) => {
-    const updatedCart = cart.filter((_, i) => i !== index);
-    setCart(updatedCart);
+  // Handle checkout navigation
+  const handleCheckout = () => {
+    setIsModalOpen(false);
+    navigate("/checkout", {
+      state: {
+        cart: cart,
+        total: getCartTotal(),
+      },
+    });
   };
-
-  // Update item quantity in cart
-  const updateQuantity = (index, newQuantity) => {
-    if (newQuantity <= 0) {
-      handleRemoveFromCart(index);
-      return;
-    }
-
-    const updatedCart = [...cart];
-    updatedCart[index] = { ...updatedCart[index], quantity: newQuantity };
-    setCart(updatedCart);
-  };
-
-  // Get total cart quantity
-  const getTotalCartQuantity = () => {
-    return cart.reduce((total, item) => total + (item.quantity || 1), 0);
-  };
-
-  // Get cart total price
-  const getCartTotal = () => {
-    return cart.reduce((total, item) => {
-      const price = item.isOnOffer ? item.offerPrice : item.price;
-      const quantity = item.quantity || 1;
-      return total + price * quantity;
-    }, 0);
-  };
-
-  // Clear cart
-  const clearCart = () => {
-    setCart([]);
-    localStorage.removeItem("cart");
-  };
-
   // Filter foods by category
   const filteredFoods =
     activeCategory === "all"
@@ -294,22 +487,37 @@ const FoodSlider = () => {
           </h1>
           {user && (
             <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Welcome back, {user.name}!
+              Welcome back, {user.name}! (ID: {getUserId()})
+            </p>
+          )}
+          {!isUserAuthenticated() && cart.length > 0 && (
+            <p className="text-center text-xs text-orange-600 dark:text-orange-400 mt-2">
+              Sign in to save your cart across devices
             </p>
           )}
         </motion.div>
       </div>
 
-      {/* Floating Cart Button - Centered at top */}
+      {/* Floating Cart Button */}
       <motion.button
         className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-red-900 text-white p-4 rounded-full shadow-lg z-50 flex items-center justify-center hover:bg-red-800 transition-colors duration-200"
         whileHover={{ scale: 1.05, rotate: [0, -10, 10, 0] }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsModalOpen(true)}
+        disabled={cartLoading}
       >
-        <ShoppingCart size={24} />
+        {cartLoading ? (
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          >
+            <ChefHat size={24} />
+          </motion.div>
+        ) : (
+          <ShoppingCart size={24} />
+        )}
         <AnimatePresence>
-          {cart.length > 0 && (
+          {cart.length > 0 && !cartLoading && (
             <motion.span
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
@@ -368,530 +576,390 @@ const FoodSlider = () => {
           </div>
         </motion.div>
 
-        {/* Food Items Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {filteredFoods.map((food, index) => (
-            <motion.div
-              key={food._id}
-              className="relative group h-full"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              whileHover={{ y: -5 }}
-            >
-              {/* Food Card */}
-              <div className="h-full rounded-lg overflow-hidden bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 dark:border-gray-700">
-                {/* Food Image */}
-                <div
-                  className="relative h-52 overflow-hidden cursor-pointer"
-                  onClick={() => openProductModal(food)}
-                >
-                  <motion.img
+        {/* Food Grid */}
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+        >
+          <AnimatePresence>
+            {filteredFoods.map((food, index) => (
+              <motion.div
+                key={food._id}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 border border-gray-200 dark:border-gray-700"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ delay: index * 0.1 }}
+                whileHover={{ y: -5 }}
+                onClick={() => openProductModal(food)}
+              >
+                <div className="relative h-48 overflow-hidden cursor-pointer">
+                  <img
                     src={food.images[0]}
                     alt={food.name}
-                    className="w-full h-full object-cover"
-                    whileHover={{ scale: 1.1 }}
-                    transition={{ duration: 0.5 }}
+                    className="w-full h-full object-cover transition-transform duration-300 hover:scale-110"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent"></div>
-
-                  {/* Favorite Button */}
-                  <motion.button
+                  {food.isOnOffer && (
+                    <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                      OFFER!
+                    </div>
+                  )}
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleFavorite(food._id);
                     }}
-                    className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 shadow-md z-10"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
+                    className="absolute top-2 right-2 p-2 rounded-full bg-white dark:bg-gray-800 shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                   >
                     <Heart
-                      size={16}
-                      className={
+                      size={18}
+                      className={`${
                         favorites.includes(food._id)
-                          ? "fill-red-600 text-red-600"
-                          : "text-gray-400"
-                      }
+                          ? "text-red-500 fill-red-500"
+                          : "text-gray-600 dark:text-gray-300"
+                      }`}
                     />
-                  </motion.button>
-
-                  {/* Special Offer Badge */}
-                  {food.isOnOffer && (
-                    <div className="absolute top-4 left-4 bg-orange-500 text-white font-bold py-1 px-3 rounded-lg text-xs shadow-md">
-                      {Math.round((1 - food.offerPrice / food.price) * 100)}%
-                      OFF
-                    </div>
-                  )}
-
-                  {/* Category Tag */}
-                  <div className="absolute bottom-4 left-4 bg-white/90 dark:bg-gray-800/90 rounded-lg px-3 py-1 text-xs font-semibold text-red-900 dark:text-white shadow-md">
-                    {food.category}
-                  </div>
+                  </button>
                 </div>
 
-                {/* Food Details */}
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                      {food.name}
-                    </h3>
-                    <div className="flex flex-col items-end">
+                <div className="p-4">
+                  <h3 className="font-bold text-lg text-gray-800 dark:text-white mb-2 line-clamp-2">
+                    {food.name}
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-300 text-sm mb-3 line-clamp-2">
+                    {food.description}
+                  </p>
+
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-1">
+                      <Clock size={14} className="text-orange-500" />
+                      <span className="text-xs text-gray-600 dark:text-gray-300">
+                        {food.cookingTime} min
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Utensils size={14} className="text-orange-500" />
+                      <span className="text-xs text-gray-600 dark:text-gray-300">
+                        {food.category}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
                       {food.isOnOffer ? (
                         <>
-                          <span className="text-gray-500 dark:text-gray-400 line-through text-sm">
-                            KSh. {food.price}
-                          </span>
-                          <span className="text-red-900 dark:text-orange-500 font-bold">
+                          <span className="text-lg font-bold text-red-600">
                             KSh. {food.offerPrice}
+                          </span>
+                          <span className="text-sm text-gray-500 line-through">
+                            KSh. {food.price}
                           </span>
                         </>
                       ) : (
-                        <span className="text-red-900 dark:text-orange-500 font-bold">
+                        <span className="text-lg font-bold text-red-900 dark:text-orange-500">
                           KSh. {food.price}
                         </span>
                       )}
                     </div>
+
+                    <motion.button
+                      className="bg-red-900 text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-red-800 transition-colors flex items-center gap-2"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePlaceOrder(food);
+                      }}
+                    >
+                      <Plus size={16} />
+                      Add
+                    </motion.button>
                   </div>
-
-                  <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-2">
-                    {food.description}
-                  </p>
-
-                  {/* Order Button */}
-                  <motion.button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePlaceOrder(food);
-                    }}
-                    className="w-full bg-red-900 text-white py-3 px-4 rounded-lg shadow-md font-medium hover:bg-red-800 transition-colors"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    Add to Cart
-                  </motion.button>
                 </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* Empty State */}
-        {filteredFoods.length === 0 && !loading && (
-          <div className="col-span-full text-center py-12">
-            <div className="text-6xl mb-4">🍽️</div>
-            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
-              No items found
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300">
-              Try selecting a different category or check back later for new
-              menu items.
-            </p>
-          </div>
-        )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
       </div>
 
-      {/* Product Detail Modal */}
+      {/* Cart Modal */}
       <AnimatePresence>
-        {selectedProduct && (
-          <>
+        {isModalOpen && (
+          <motion.div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
             <motion.div
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9998]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={closeProductModal}
-            />
-
-            <motion.div
-              className="fixed inset-0 m-auto w-full max-w-4xl h-[90vh] bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden z-[9999] flex flex-col"
+              className="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
             >
-              {/* Close Button */}
-              <button
-                onClick={closeProductModal}
-                className="absolute top-4 right-4 z-50 w-10 h-10 flex items-center justify-center rounded-full bg-white/80 dark:bg-gray-700/80 backdrop-blur-sm shadow-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-              >
-                <X size={24} className="text-gray-700 dark:text-gray-200" />
-              </button>
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
+                    Your Cart ({getTotalCartQuantity()} items)
+                  </h2>
+                  <button
+                    onClick={() => setIsModalOpen(false)}
+                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <X size={24} className="text-gray-600 dark:text-gray-300" />
+                  </button>
+                </div>
+              </div>
 
-              {/* Image Gallery */}
-              <div className="relative h-1/2 w-full overflow-hidden bg-gray-100 dark:bg-gray-900">
-                {selectedProduct.images.length > 1 && (
-                  <>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        prevImage();
-                      }}
-                      className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-white/80 dark:bg-gray-700/80 backdrop-blur-sm shadow-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <ChevronLeft
-                        size={24}
-                        className="text-gray-700 dark:text-gray-200"
-                      />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        nextImage();
-                      }}
-                      className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-white/80 dark:bg-gray-700/80 backdrop-blur-sm shadow-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <ChevronRight
-                        size={24}
-                        className="text-gray-700 dark:text-gray-200"
-                      />
-                    </button>
-                  </>
-                )}
-
-                <img
-                  src={selectedProduct.images[currentImageIndex]}
-                  alt={selectedProduct.name}
-                  className="w-full h-full object-cover"
-                />
-
-                {/* Image Indicators */}
-                {selectedProduct.images.length > 1 && (
-                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
-                    {selectedProduct.images.map((_, index) => (
-                      <button
-                        key={index}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentImageIndex(index);
-                        }}
-                        className={`w-2 h-2 rounded-full transition-all ${
-                          index === currentImageIndex
-                            ? "bg-red-900 w-4"
-                            : "bg-white/50"
-                        }`}
-                      />
+              <div className="max-h-96 overflow-y-auto p-6">
+                {cart.length === 0 ? (
+                  <div className="text-center py-12">
+                    <ShoppingCart
+                      size={64}
+                      className="mx-auto text-gray-400 mb-4"
+                    />
+                    <p className="text-gray-600 dark:text-gray-300 text-lg">
+                      Your cart is empty
+                    </p>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-2">
+                      Add some delicious items to get started!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {cart.map((item, index) => (
+                      <motion.div
+                        key={`${item._id}-${index}`}
+                        className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                      >
+                        <img
+                          src={item.images[0]}
+                          alt={item.name}
+                          className="w-16 h-16 rounded-lg object-cover"
+                        />
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-800 dark:text-white">
+                            {item.name}
+                          </h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-300">
+                            KSh. {item.isOnOffer ? item.offerPrice : item.price}{" "}
+                            each
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() =>
+                              updateQuantity(index, (item.quantity || 1) - 1)
+                            }
+                            className="p-1 rounded-full bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
+                          >
+                            <Minus size={16} />
+                          </button>
+                          <span className="font-semibold text-gray-800 dark:text-white min-w-[20px] text-center">
+                            {item.quantity || 1}
+                          </span>
+                          <button
+                            onClick={() =>
+                              updateQuantity(index, (item.quantity || 1) + 1)
+                            }
+                            className="p-1 rounded-full bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-gray-800 dark:text-white">
+                            KSh.{" "}
+                            {(
+                              (item.isOnOffer ? item.offerPrice : item.price) *
+                              (item.quantity || 1)
+                            ).toFixed(2)}
+                          </p>
+                          <button
+                            onClick={() => handleRemoveFromCart(index)}
+                            className="text-red-500 hover:text-red-700 text-sm mt-1"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </motion.div>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Product Details */}
-              <div className="flex-1 overflow-y-auto p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {cart.length > 0 && (
+                <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-xl font-bold text-gray-800 dark:text-white">
+                      Total: KSh. {getCartTotal().toFixed(2)}
+                    </span>
+                    <button
+                      onClick={clearCart}
+                      className="text-red-500 hover:text-red-700 text-sm"
+                    >
+                      Clear Cart
+                    </button>
+                  </div>
+                  <motion.button
+                    onClick={handleCheckout}
+                    className="w-full bg-red-900 text-white py-3 rounded-lg font-medium hover:bg-red-800 transition-colors"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Proceed to Checkout
+                  </motion.button>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Product Details Modal */}
+      <AnimatePresence>
+        {selectedProduct && (
+          <motion.div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white dark:bg-gray-800 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+            >
+              <div className="flex flex-col md:flex-row">
+                {/* Image Section */}
+                <div className="md:w-1/2 relative">
+                  <div className="relative h-64 md:h-96">
+                    <img
+                      src={selectedProduct.images[currentImageIndex]}
+                      alt={selectedProduct.name}
+                      className="w-full h-full object-cover"
+                    />
+                    {selectedProduct.images.length > 1 && (
+                      <>
+                        <button
+                          onClick={prevImage}
+                          className="absolute left-2 top-1/2 transform -translate-y-1/2 p-2 rounded-full bg-black bg-opacity-50 text-white hover:bg-opacity-70"
+                        >
+                          <ChevronLeft size={20} />
+                        </button>
+                        <button
+                          onClick={nextImage}
+                          className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 rounded-full bg-black bg-opacity-50 text-white hover:bg-opacity-70"
+                        >
+                          <ChevronRight size={20} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {selectedProduct.images.length > 1 && (
+                    <div className="flex justify-center gap-2 p-4">
+                      {selectedProduct.images.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setCurrentImageIndex(index)}
+                          className={`w-3 h-3 rounded-full ${
+                            index === currentImageIndex
+                              ? "bg-red-500"
+                              : "bg-gray-300"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Details Section */}
+                <div className="md:w-1/2 p-6 flex flex-col">
+                  <div className="flex items-start justify-between mb-4">
+                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
                       {selectedProduct.name}
                     </h2>
-                    <div className="flex items-center mt-1">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <button
+                      onClick={closeProductModal}
+                      className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <X
+                        size={24}
+                        className="text-gray-600 dark:text-gray-300"
+                      />
+                    </button>
+                  </div>
+
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">
+                    {selectedProduct.description}
+                  </p>
+
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="flex items-center gap-2">
+                      <Clock size={16} className="text-orange-500" />
+                      <span className="text-sm text-gray-600 dark:text-gray-300">
+                        {selectedProduct.cookingTime} minutes
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <ChefHat size={16} className="text-orange-500" />
+                      <span className="text-sm text-gray-600 dark:text-gray-300">
                         {selectedProduct.category}
                       </span>
                     </div>
                   </div>
 
-                  <div className="text-right">
+                  <div className="flex items-center gap-4 mb-6">
                     {selectedProduct.isOnOffer ? (
                       <>
-                        <span className="text-gray-500 dark:text-gray-400 line-through text-sm">
-                          KSh. {selectedProduct.price}
-                        </span>
-                        <span className="text-red-900 dark:text-orange-500 font-bold text-xl block">
+                        <span className="text-2xl font-bold text-red-600">
                           KSh. {selectedProduct.offerPrice}
                         </span>
-                        <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-lg font-bold">
+                        <span className="text-lg text-gray-500 line-through">
+                          KSh. {selectedProduct.price}
+                        </span>
+                        <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-bold">
                           {Math.round(
-                            (1 -
-                              selectedProduct.offerPrice /
-                                selectedProduct.price) *
+                            ((selectedProduct.price -
+                              selectedProduct.offerPrice) /
+                              selectedProduct.price) *
                               100
                           )}
                           % OFF
                         </span>
                       </>
                     ) : (
-                      <span className="text-red-900 dark:text-orange-500 font-bold text-xl">
+                      <span className="text-2xl font-bold text-red-900 dark:text-orange-500">
                         KSh. {selectedProduct.price}
                       </span>
                     )}
                   </div>
-                </div>
 
-                <p className="text-gray-700 dark:text-gray-300 mb-6">
-                  {selectedProduct.description}
-                </p>
-
-                {/* Additional Info */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                      Preparation
-                    </div>
-                    <div className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
-                      <Clock
-                        size={14}
-                        className="mr-1 text-red-900 dark:text-orange-500"
-                      />
-                      15-25 mins
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                      Servings
-                    </div>
-                    <div className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300">
-                      <Utensils
-                        size={14}
-                        className="mr-1 text-red-900 dark:text-orange-500"
-                      />
-                      1-2 people
-                    </div>
-                  </div>
-                </div>
-
-                {/* Add to Cart Button */}
-                <motion.button
-                  onClick={() => {
-                    handlePlaceOrder(selectedProduct);
-                    closeProductModal();
-                  }}
-                  className="w-full bg-red-900 text-white py-4 px-6 rounded-lg shadow-md font-bold text-lg mt-4 hover:bg-red-800 transition-colors"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  Add to Cart - KSh.{" "}
-                  {selectedProduct.isOnOffer
-                    ? selectedProduct.offerPrice
-                    : selectedProduct.price}
-                </motion.button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Cart Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <>
-            <motion.div
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsModalOpen(false)}
-            />
-
-            <motion.div
-              className={`fixed ${
-                isMobile
-                  ? "bottom-0 left-0 w-full max-h-[80vh] rounded-t-lg"
-                  : "top-0 right-0 w-96 h-full"
-              } bg-white dark:bg-gray-800 shadow-2xl p-6 overflow-y-auto z-[9999]`}
-              initial={{
-                x: isMobile ? 0 : "100%",
-                y: isMobile ? "100%" : 0,
-              }}
-              animate={{
-                x: 0,
-                y: 0,
-              }}
-              exit={{
-                x: isMobile ? 0 : "100%",
-                y: isMobile ? "100%" : 0,
-              }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-red-900 dark:text-white">
-                  Your Order
-                </h2>
-                <div className="flex gap-2">
-                  {cart.length > 0 && (
-                    <button
-                      onClick={clearCart}
-                      className="text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-full transition-colors"
-                    >
-                      Clear
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setIsModalOpen(false)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors duration-200"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-              </div>
-
-              {cart.length > 0 ? (
-                <>
-                  <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                    {cart.map((food, index) => (
-                      <motion.div
-                        key={`${food._id}-${index}`}
-                        className="flex items-center gap-4 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors duration-200 group"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <img
-                          src={food.images[0]}
-                          alt={food.name}
-                          className="w-16 h-16 object-cover rounded-lg border-2 border-gray-300 dark:border-gray-600 group-hover:scale-105 transition-transform duration-200"
-                        />
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-800 dark:text-white text-sm">
-                            {food.name}
-                          </h3>
-                          <p className="text-gray-600 dark:text-gray-400 text-xs">
-                            {food.category}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-red-900 dark:text-orange-500 font-bold text-sm">
-                              KSh.{" "}
-                              {food.isOnOffer ? food.offerPrice : food.price}
-                            </span>
-                            {food.isOnOffer && (
-                              <span className="text-gray-500 dark:text-gray-400 line-through text-xs">
-                                KSh. {food.price}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Quantity Controls */}
-                        <div className="flex items-center gap-2">
-                          <motion.button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateQuantity(index, (food.quantity || 1) - 1);
-                            }}
-                            className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-600 hover:bg-red-100 dark:hover:bg-red-800 text-gray-700 dark:text-gray-300 hover:text-red-900 dark:hover:text-white transition-colors"
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                          >
-                            <Minus size={16} />
-                          </motion.button>
-
-                          <span className="w-8 text-center font-semibold text-gray-800 dark:text-white">
-                            {food.quantity || 1}
-                          </span>
-
-                          <motion.button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateQuantity(index, (food.quantity || 1) + 1);
-                            }}
-                            className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-600 hover:bg-green-100 dark:hover:bg-green-800 text-gray-700 dark:text-gray-300 hover:text-green-900 dark:hover:text-white transition-colors"
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                          >
-                            <Plus size={16} />
-                          </motion.button>
-                        </div>
-
-                        {/* Remove Button */}
-                        <motion.button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveFromCart(index);
-                          }}
-                          className="w-8 h-8 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900 hover:bg-red-200 dark:hover:bg-red-800 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors opacity-0 group-hover:opacity-100"
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                        >
-                          <X size={16} />
-                        </motion.button>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {/* Cart Summary */}
-                  <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
-                    <div className="space-y-3 mb-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          Items ({getTotalCartQuantity()})
-                        </span>
-                        <span className="text-sm font-medium text-gray-800 dark:text-white">
-                          KSh. {getCartTotal().toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          Delivery Fee
-                        </span>
-                        <span className="text-sm font-medium text-gray-800 dark:text-white">
-                          KSh. 50.00
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-600">
-                        <span className="font-semibold text-gray-800 dark:text-white">
-                          Total
-                        </span>
-                        <span className="font-bold text-xl text-red-900 dark:text-orange-500">
-                          KSh. {(getCartTotal() + 50).toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Checkout Button */}
+                  <div className="mt-auto">
                     <motion.button
                       onClick={() => {
-                        // Handle checkout logic here
-                        alert(
-                          `Proceeding to checkout with ${getTotalCartQuantity()} items worth KSh. ${(
-                            getCartTotal() + 50
-                          ).toFixed(2)}`
-                        );
+                        handlePlaceOrder(selectedProduct);
+                        closeProductModal();
                       }}
-                      className="w-full bg-red-900 text-white py-4 px-6 rounded-lg shadow-md font-bold text-lg hover:bg-red-800 transition-colors flex items-center justify-center gap-2"
+                      className="w-full bg-red-900 text-white py-3 rounded-lg font-medium hover:bg-red-800 transition-colors flex items-center justify-center gap-2"
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                     >
-                      <ShoppingCart size={20} />
-                      Proceed to Checkout
-                    </motion.button>
-
-                    {/* Continue Shopping Button */}
-                    <motion.button
-                      onClick={() => setIsModalOpen(false)}
-                      className="w-full mt-3 bg-transparent border-2 border-red-900 text-red-900 dark:text-orange-500 dark:border-orange-500 py-3 px-6 rounded-lg font-medium hover:bg-red-900 hover:text-white dark:hover:bg-orange-500 dark:hover:text-white transition-colors"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      Continue Shopping
+                      <Plus size={20} />
+                      Add to Cart
                     </motion.button>
                   </div>
-                </>
-              ) : (
-                <div className="text-center py-12">
-                  <motion.div
-                    className="text-6xl mb-4"
-                    animate={{ rotate: [0, -10, 10, 0] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    🛒
-                  </motion.div>
-                  <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
-                    Your cart is empty
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 mb-6">
-                    Add some delicious items to get started!
-                  </p>
-                  <motion.button
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-6 py-3 bg-red-900 text-white rounded-lg font-medium hover:bg-red-800 transition-colors"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    Continue Shopping
-                  </motion.button>
                 </div>
-              )}
+              </div>
             </motion.div>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

@@ -124,13 +124,12 @@ const registerUser = async (req, res) => {
     res.status(201).json({
       success: true,
       message: "User registered successfully",
-      accessToken,
-      refreshToken: newRefreshToken,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
+        accessToken,
       },
     });
   } catch (error) {
@@ -227,13 +226,12 @@ const loginUser = async (req, res) => {
     res.json({
       success: true,
       message: "Login successful",
-      accessToken,
-      refreshToken,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
+        accessToken,
       },
     });
   } catch (error) {
@@ -289,12 +287,12 @@ const refreshToken = async (req, res) => {
 
     res.json({
       success: true,
-      accessToken: newAccessToken,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
+        accessToken: newAccessToken,
       },
     });
   } catch (error) {

@@ -142,10 +142,13 @@ const Navigation = () => {
         throw new Error(data.message || "Authentication failed");
       }
 
-      localStorage.setItem("token", data.token);
-      if (data.user) {
+      // Fixed: Use accessToken from user object instead of data.token
+      if (data.user && data.user.accessToken) {
+        localStorage.setItem("token", data.user.accessToken);
         localStorage.setItem("user", JSON.stringify(data.user));
         setUserRole(data.user.role || "");
+      } else {
+        throw new Error("No access token received");
       }
 
       setUserEmail("");
@@ -370,7 +373,7 @@ const Navigation = () => {
                   <User size={20} className="text-[#ffd700]" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-white">
-                      {JSON.parse(localStorage.getItem("user") || "{}").email ||
+                      {JSON.parse(localStorage.getItem("user") || "{}").name ||
                         "user@example.com"}
                     </p>
                     <p className="text-xs text-gray-300">View profile</p>

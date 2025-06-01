@@ -13,6 +13,8 @@ import {
   Heart,
   Clock,
   Utensils,
+  Minus,
+  Plus,
 } from "lucide-react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
@@ -36,8 +38,14 @@ const Menu = () => {
   const [favorites, setFavorites] = useState([]);
   const [showAddAnimation, setShowAddAnimation] = useState(false);
   const [addedItem, setAddedItem] = useState(null);
+  const [user, setUser] = useState(null);
+  const [cartLoading, setCartLoading] = useState(false);
+  const [token, setToken] = useState(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
+
+  // Base API URL
+  const API_BASE_URL = "http://localhost:4000/api";
 
   // Food Tags
   const foodTags = [
@@ -49,13 +57,190 @@ const Menu = () => {
     "Affordable",
   ];
 
+  // Check if token is expired
+  const isTokenExpired = (token) => {
+    if (!token) return true;
+
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const currentTime = Date.now() / 1000;
+      return payload.exp < currentTime;
+    } catch (error) {
+      console.error("Error checking token expiration:", error);
+      return true;
+    }
+  };
+
+  // Clear authentication data
+  const clearAuthData = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setToken(null);
+    setUser(null);
+    console.log("Authentication data cleared");
+  };
+
+  // Get fresh authentication data
+  const refreshAuthData = () => {
+    const authToken = localStorage.getItem("token");
+    const userData = localStorage.getItem("user");
+
+    console.log("Refreshing auth data - Token:", authToken ? "exists" : "null");
+
+    if (authToken) {
+      if (isTokenExpired(authToken)) {
+        console.log("Token is expired, clearing auth data");
+        clearAuthData();
+        return false;
+      }
+      setToken(authToken);
+    } else {
+      setToken(null);
+    }
+
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+        console.log("User data refreshed:", parsedUser);
+      } catch (error) {
+        console.error("Error parsing user data:", error);
+        setUser(null);
+      }
+    } else {
+      setUser(null);
+    }
+
+    return !!(authToken && !isTokenExpired(authToken));
+  };
+
+  // Get authentication token and user from localStorage
+  useEffect(() => {
+    refreshAuthData();
+  }, []);
+
+  // Listen to localStorage changes (for when user logs in from another component)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === "token" || e.key === "user") {
+        console.log("Storage changed, refreshing auth data");
+        refreshAuthData();
+      }
+    };
+
+    // Listen to storage events
+    window.addEventListener("storage", handleStorageChange);
+
+    // Also check periodically for auth changes (for same-tab updates)
+    const interval = setInterval(() => {
+      const currentToken = localStorage.getItem("token");
+      if (currentToken !== token) {
+        console.log("Token changed, refreshing auth data");
+        refreshAuthData();
+      }
+    }, 1000);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [token]);
+
+  // Check if user is authenticated
+  const isUserAuthenticated = () => {
+    const currentToken = token || localStorage.getItem("token");
+    const currentUser =
+      user ||
+      (() => {
+        try {
+          const userData = localStorage.getItem("user");
+          return userData ? JSON.parse(userData) : null;
+        } catch {
+          return null;
+        }
+      })();
+
+    const isAuthenticated = !!(
+      currentToken &&
+      !isTokenExpired(currentToken) &&
+      currentUser &&
+      (currentUser.id || currentUser._id)
+    );
+
+    if (!isAuthenticated && (currentToken || currentUser)) {
+      console.log(
+        "User appears logged out or token expired, clearing stale data"
+      );
+      clearAuthData();
+    }
+
+    return isAuthenticated;
+  };
+
+  // Get user ID from user object
+  const getUserId = () => {
+    const currentUser =
+      user ||
+      (() => {
+        try {
+          const userData = localStorage.getItem("user");
+          return userData ? JSON.parse(userData) : null;
+        } catch {
+          return null;
+        }
+      })();
+
+    if (!currentUser) return null;
+    return currentUser.id || currentUser._id || null;
+  };
+
+  // Get auth headers for API calls with fresh token
+  const getAuthHeaders = () => {
+    const currentToken = token || localStorage.getItem("token");
+    // console.log("this is the token", currentToken);
+
+    if (currentToken && !isTokenExpired(currentToken)) {
+      return {
+        headers: {
+          Authorization: `Bearer ${currentToken}`,
+          "Content-Type": "application/json",
+        },
+      };
+    }
+
+    // If token is expired, clear it
+    if (currentToken && isTokenExpired(currentToken)) {
+      console.log("Token expired, clearing auth data");
+      clearAuthData();
+    }
+
+    return {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+  };
+
+  // Enhanced API error handler
+  const handleApiError = (error, actionName) => {
+    console.error(`Error in ${actionName}:`, error);
+
+    if (error.response?.status === 401) {
+      console.log(`401 error in ${actionName}, clearing authentication`);
+      clearAuthData();
+      // Optionally redirect to login
+      // navigate('/login');
+      return false;
+    }
+
+    return true;
+  };
+
   // Fetch foods from API and extract unique categories
   useEffect(() => {
     const fetchFoods = async () => {
       try {
-        const response = await axios.get(
-          "https://ika-cua5-backend.vercel.app/api/food/"
-        );
+        const response = await axios.get(`${API_BASE_URL}/food/`);
         if (response.data && Array.isArray(response.data.data)) {
           setFoods(response.data.data);
 
@@ -74,6 +259,7 @@ const Menu = () => {
           setError("Unexpected API response format.");
         }
       } catch (err) {
+        console.error("Error fetching foods:", err);
         setError("Failed to load food data.");
       } finally {
         setLoading(false);
@@ -82,6 +268,39 @@ const Menu = () => {
     };
     fetchFoods();
   }, []);
+
+  // Load cart after foods are loaded
+  useEffect(() => {
+    if (foods.length > 0) {
+      loadCart();
+    }
+  }, [foods, user, token]);
+
+  // Save guest cart to localStorage whenever cart changes (for non-logged in users)
+  useEffect(() => {
+    if (!isUserAuthenticated()) {
+      localStorage.setItem("guestCart", JSON.stringify(cart));
+    }
+  }, [cart, user, token]);
+
+  // Load cart based on authentication status
+  const loadCart = async () => {
+    if (isUserAuthenticated()) {
+      // User is logged in - fetch from API and merge with local cart
+      await handleLoginCartMerge();
+    } else {
+      // User not logged in - load from localStorage
+      const savedCart = localStorage.getItem("guestCart");
+      if (savedCart) {
+        try {
+          const parsedCart = JSON.parse(savedCart);
+          setCart(parsedCart);
+        } catch (error) {
+          console.error("Error parsing guest cart data:", error);
+        }
+      }
+    }
+  };
 
   // Auto-rotate featured items
   useEffect(() => {
@@ -93,15 +312,302 @@ const Menu = () => {
     return () => clearInterval(interval);
   }, [foods.length]);
 
-  // Handle adding to cart with animation
-  const handlePlaceOrder = (food) => {
+  // Handle cart merging when user logs in
+  const handleLoginCartMerge = async () => {
+    const userId = getUserId();
+    if (!userId) return;
+
+    setCartLoading(true);
+    try {
+      // Get guest cart from localStorage
+      const guestCart = localStorage.getItem("guestCart");
+      let guestCartItems = [];
+
+      if (guestCart) {
+        try {
+          guestCartItems = JSON.parse(guestCart);
+        } catch (error) {
+          console.error("Error parsing guest cart:", error);
+        }
+      }
+
+      // Merge guest cart items with server cart if there are any
+      if (guestCartItems.length > 0) {
+        console.log("Merging guest cart with server cart...");
+
+        // Send each guest cart item to the server
+        for (const guestItem of guestCartItems) {
+          const quantity = guestItem.quantity || 1;
+
+          // Add items one by one to maintain proper quantity
+          for (let i = 0; i < quantity; i++) {
+            try {
+              await axios.post(
+                `${API_BASE_URL}/cart/add`,
+                {
+                  itemId: guestItem._id,
+                },
+                getAuthHeaders()
+              );
+            } catch (error) {
+              if (!handleApiError(error, "merge guest cart item")) {
+                break; // Stop if auth error
+              }
+            }
+          }
+        }
+
+        // Clear guest cart after successful merge
+        localStorage.removeItem("guestCart");
+      }
+
+      // Fetch updated cart from server
+      await fetchCartFromAPI();
+    } catch (error) {
+      handleApiError(error, "cart merge");
+      // Fallback to guest cart if API fails
+      const guestCart = localStorage.getItem("guestCart");
+      if (guestCart) {
+        try {
+          setCart(JSON.parse(guestCart));
+        } catch (parseError) {
+          console.error("Error parsing fallback cart:", parseError);
+        }
+      }
+    } finally {
+      setCartLoading(false);
+    }
+  };
+
+  // Fetch cart items from API
+  const fetchCartFromAPI = async () => {
+    if (!isUserAuthenticated()) {
+      console.log("User not authenticated, skipping API cart fetch");
+      return;
+    }
+
+    setCartLoading(true);
+    try {
+      console.log("Fetching cart from API...");
+      const response = await axios.get(
+        `${API_BASE_URL}/cart/get`,
+        getAuthHeaders()
+      );
+
+      console.log("Cart API response:", response.data);
+
+      if (response.data.success && response.data.cartData) {
+        // Convert API cart data to local cart format
+        const cartData = response.data.cartData;
+        const cartItems = [];
+
+        // For each item ID in cart data, find the food item and add quantity
+        for (const [itemId, quantity] of Object.entries(cartData)) {
+          const foodItem = foods.find((food) => food._id === itemId);
+          if (foodItem && quantity > 0) {
+            cartItems.push({ ...foodItem, quantity });
+          }
+        }
+
+        console.log("Processed cart items:", cartItems);
+        setCart(cartItems);
+      } else {
+        console.log("No cart data found or unsuccessful response");
+        setCart([]);
+      }
+    } catch (error) {
+      handleApiError(error, "fetch cart errors");
+    } finally {
+      setCartLoading(false);
+    }
+  };
+
+  // Add item to cart via API (for logged-in users)
+  const addToCartAPI = async (itemId) => {
+    try {
+      console.log("Adding item to cart via API:", itemId);
+      const response = await axios.post(
+        `${API_BASE_URL}/cart/add`,
+        {
+          itemId: itemId,
+        },
+        currentToken
+      );
+      console.log("Add to cart API response:", response.data);
+      return response.data;
+    } catch (error) {
+      if (handleApiError(error, "add to cart")) {
+        // Non-auth error, return null to trigger fallback
+        return null;
+      }
+      return null;
+    }
+  };
+
+  // Remove item from cart via API
+  const removeFromCartAPI = async (itemId) => {
+    try {
+      console.log("Removing item from cart via API:", itemId);
+      const response = await axios.delete(
+        `${API_BASE_URL}/cart/remove/${itemId}`,
+        getAuthHeaders()
+      );
+      console.log("Remove from cart API response:", response.data);
+      return response.data;
+    } catch (error) {
+      if (handleApiError(error, "remove from cart")) {
+        return null;
+      }
+      return null;
+    }
+  };
+
+  // Handle adding to cart with animation and persistence
+  const handlePlaceOrder = async (food) => {
     if ("vibrate" in navigator) navigator.vibrate(50);
+
+    if (isUserAuthenticated()) {
+      // User is logged in - use API
+      console.log("Adding to cart via API for item:", food._id);
+      const result = await addToCartAPI(food._id);
+      if (result && result.success) {
+        // Refresh cart from API
+        await fetchCartFromAPI();
+      } else {
+        // Fallback to local storage if API fails
+        console.log("API failed, falling back to local storage");
+        updateLocalCart(food);
+      }
+    } else {
+      // User not logged in - use local storage (guest cart)
+      console.log("Adding to guest cart");
+      updateLocalCart(food);
+    }
+
+    // Show animation
     setAddedItem(food);
     setShowAddAnimation(true);
     setTimeout(() => {
       setShowAddAnimation(false);
-      setCart((prev) => [...prev, food]);
     }, 1000);
+  };
+
+  // Update local cart (for non-logged in users or API fallback)
+  const updateLocalCart = (food) => {
+    const existingItemIndex = cart.findIndex((item) => item._id === food._id);
+
+    if (existingItemIndex > -1) {
+      // If item exists, increase quantity
+      const updatedCart = [...cart];
+      updatedCart[existingItemIndex] = {
+        ...updatedCart[existingItemIndex],
+        quantity: (updatedCart[existingItemIndex].quantity || 1) + 1,
+      };
+      setCart(updatedCart);
+    } else {
+      // If new item, add to cart with quantity 1
+      const newItem = { ...food, quantity: 1 };
+      setCart((prev) => [...prev, newItem]);
+    }
+  };
+
+  // Remove item from cart
+  const handleRemoveFromCart = async (index) => {
+    const item = cart[index];
+
+    if (isUserAuthenticated()) {
+      // User is logged in - use API
+      const result = await removeFromCartAPI(item._id);
+      if (result && result.success) {
+        // Refresh cart from API
+        await fetchCartFromAPI();
+      } else {
+        // Fallback to local removal if API fails
+        const updatedCart = cart.filter((_, i) => i !== index);
+        setCart(updatedCart);
+      }
+    } else {
+      // User not logged in - remove from local storage (guest cart)
+      const updatedCart = cart.filter((_, i) => i !== index);
+      setCart(updatedCart);
+    }
+  };
+
+  // Update item quantity in cart
+  const updateQuantity = async (index, newQuantity) => {
+    if (newQuantity <= 0) {
+      handleRemoveFromCart(index);
+      return;
+    }
+
+    const item = cart[index];
+
+    if (isUserAuthenticated()) {
+      // For logged-in users, we need to add/remove items to achieve the desired quantity
+      const currentQuantity = item.quantity || 1;
+      const difference = newQuantity - currentQuantity;
+
+      if (difference > 0) {
+        // Add more items
+        for (let i = 0; i < difference; i++) {
+          await addToCartAPI(item._id);
+        }
+      } else if (difference < 0) {
+        // Remove items (need to call remove API multiple times)
+        for (let i = 0; i < Math.abs(difference); i++) {
+          await removeFromCartAPI(item._id);
+        }
+      }
+
+      // Refresh cart from API
+      await fetchCartFromAPI();
+    } else {
+      // User not logged in - update local storage (guest cart)
+      const updatedCart = [...cart];
+      updatedCart[index] = { ...updatedCart[index], quantity: newQuantity };
+      setCart(updatedCart);
+    }
+  };
+
+  // Get total cart quantity
+  const getTotalCartQuantity = () => {
+    return cart.reduce((total, item) => total + (item.quantity || 1), 0);
+  };
+
+  const handleCheckout = () => {
+    setIsModalOpen(false);
+    navigate("/checkout", {
+      state: {
+        cart: cart,
+        total: getCartTotal(),
+      },
+    });
+  };
+
+  // Get cart total price
+  const getCartTotal = () => {
+    return cart.reduce((total, item) => {
+      const price = item.isOnOffer ? item.offerPrice : item.price;
+      const quantity = item.quantity || 1;
+      return total + price * quantity;
+    }, 0);
+  };
+
+  // Clear cart
+  const clearCart = async () => {
+    if (isUserAuthenticated()) {
+      // For logged-in users, remove all items via API
+      for (const item of cart) {
+        for (let i = 0; i < (item.quantity || 1); i++) {
+          await removeFromCartAPI(item._id);
+        }
+      }
+      await fetchCartFromAPI();
+    } else {
+      // For non-logged-in users, clear guest cart
+      setCart([]);
+      localStorage.removeItem("guestCart");
+    }
   };
 
   // Toggle favorite status
@@ -188,11 +694,6 @@ const Menu = () => {
     return `KSh ${price}`;
   };
 
-  // Remove item from cart
-  const handleRemoveFromCart = (index) => {
-    setCart((prevCart) => prevCart.filter((_, i) => i !== index));
-  };
-
   const filteredItems = getFilteredMenuItems();
 
   // Loading state
@@ -271,23 +772,36 @@ const Menu = () => {
         ))}
       </div>
 
-      {/* Floating Cart Button */}
+      {/* Auth Status Debug (Remove in production) */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="fixed top-20 right-4 bg-black/80 text-white p-2 rounded text-xs z-50">
+          <div>Auth: {isUserAuthenticated() ? "Yes" : "No"}</div>
+          <div>Token: {token ? "Exists" : "None"}</div>
+          <div>User: {user?.email || "None"}</div>
+          <div>
+            Expired: {token ? (isTokenExpired(token) ? "Yes" : "No") : "N/A"}
+          </div>
+        </div>
+      )}
+
+      {/* Rest of your component remains the same... */}
+      {/* Floating Cart Button - Centered */}
       <motion.button
-        className="fixed top-6 right-6 bg-red-900 text-white p-4 rounded-full shadow-lg z-50 flex items-center justify-center hover:bg-red-800 transition-colors duration-200"
+        className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-red-900 text-white p-4 rounded-full shadow-lg z-50 flex items-center justify-center hover:bg-red-800 transition-colors duration-200"
         whileHover={{ scale: 1.05, rotate: [0, -10, 10, 0] }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsModalOpen(true)}
       >
         <ShoppingCart size={24} />
         <AnimatePresence>
-          {cart.length > 0 && (
+          {getTotalCartQuantity() > 0 && (
             <motion.span
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               exit={{ scale: 0, rotate: 180 }}
               className="absolute -top-2 -right-2 bg-yellow-400 text-red-900 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
             >
-              {cart.length}
+              {getTotalCartQuantity()}
             </motion.span>
           )}
         </AnimatePresence>
@@ -380,665 +894,419 @@ const Menu = () => {
               />
             </button>
 
-            {/* Filter Dropdown */}
-            <div
-              className={`mt-3 bg-white rounded-xl shadow-lg p-4 transition-all duration-300 ${
-                isFilterOpen
-                  ? "max-h-96 opacity-100"
-                  : "max-h-0 opacity-0 overflow-hidden"
-              }`}
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Budget Input Field */}
-                <div>
-                  <h3 className="font-semibold text-gray-700 mb-2">
-                    Enter Your Budget (KSh)
-                  </h3>
-                  <div className="flex items-center space-x-4">
-                    <div className="relative flex-1">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <DollarSign className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <input
-                        type="number"
-                        min="0"
-                        max="3000"
-                        step="50"
-                        className="block w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:ring-red-900 focus:border-red-900 transition-colors text-gray-700"
-                        value={maxBudget}
-                        onChange={(e) =>
-                          setMaxBudget(parseInt(e.target.value) || 0)
-                        }
-                        placeholder="Max budget amount"
-                      />
-                    </div>
-                    <div className="text-sm text-gray-600 whitespace-nowrap">
-                      Shows dishes KSh {maxBudget} and below
+            {/* Filter Panel */}
+            {isFilterOpen && (
+              <div className="mt-4 bg-white p-6 rounded-2xl shadow-lg border border-gray-200">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Budget Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <DollarSign className="inline w-4 h-4 mr-1" />
+                      Max Budget: KSh {maxBudget}
+                    </label>
+                    <input
+                      type="range"
+                      min="100"
+                      max="3000"
+                      value={maxBudget}
+                      onChange={(e) => setMaxBudget(Number(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>KSh 100</span>
+                      <span>KSh 3000</span>
                     </div>
                   </div>
-                </div>
 
-                {/* Food Tags */}
-                <div>
-                  <h3 className="font-semibold text-gray-700 mb-2">Criteria</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {foodTags.map((tag) => (
-                      <button
-                        key={tag}
-                        onClick={() => toggleTag(tag)}
-                        className={`flex items-center px-3 py-1 rounded-full text-sm transition-colors ${
-                          selectedTags.includes(tag)
-                            ? "bg-red-900 text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        }`}
-                      >
-                        <Tag className="w-3 h-3 mr-1" />
-                        {tag}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Filter Actions */}
-              <div className="flex justify-end mt-4">
-                <button
-                  onClick={resetFilters}
-                  className="text-gray-600 hover:text-gray-800 text-sm mr-4"
-                >
-                  Reset All
-                </button>
-                <button
-                  onClick={() => setIsFilterOpen(false)}
-                  className="bg-red-900 text-white px-4 py-1 rounded-full text-sm hover:bg-red-800 transition-colors"
-                >
-                  Apply Filters
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Category Navigation (Horizontal Scroll) */}
-        <div className="block lg:hidden mb-6 overflow-x-auto pb-2 -mx-4 px-4">
-          <div
-            className={`flex space-x-2 transition-all duration-1000 ${
-              isLoaded
-                ? "translate-x-0 opacity-100"
-                : "-translate-x-20 opacity-0"
-            }`}
-          >
-            {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => handleCategoryClick(category)}
-                className={`whitespace-nowrap px-4 py-2 rounded-full transition-all ${
-                  activeCategory === category
-                    ? "bg-red-900 text-white font-medium shadow"
-                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                }`}
-              >
-                <span>
-                  {category.charAt(0).toUpperCase() + category.slice(1)}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Main Content Area with Categories and Menu Items */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Categories Section - Left Side (Desktop only) */}
-          <div
-            className={`hidden lg:block lg:col-span-1 transition-all duration-1000 ${
-              isLoaded
-                ? "translate-x-0 opacity-100"
-                : "-translate-x-20 opacity-0"
-            }`}
-          >
-            <div className="bg-white rounded-2xl shadow-lg overflow-hidden sticky top-4">
-              {/* Category Header */}
-              <div className="bg-red-900 text-white py-4 px-6">
-                <h2 className="text-xl font-bold flex items-center">
-                  <span>Menu Categories</span>
-                  <span className="ml-2">🍴</span>
-                </h2>
-              </div>
-
-              {/* Category List */}
-              <div className="py-4">
-                {categories.map((category) => (
-                  <button
-                    key={category}
-                    onClick={() => handleCategoryClick(category)}
-                    className={`w-full text-left px-6 py-3 transition-all flex items-center justify-between ${
-                      activeCategory === category
-                        ? "bg-orange-50 border-l-4 border-red-900 font-medium text-red-900"
-                        : "hover:bg-gray-50 text-gray-700"
-                    }`}
-                  >
-                    <span>
-                      {category.charAt(0).toUpperCase() + category.slice(1)}
-                    </span>
-                    {activeCategory === category && (
-                      <span className="text-lg">
-                        {category === "meat"
-                          ? "🥩"
-                          : category === "vegetarian"
-                          ? "🥗"
-                          : category === "seafood"
-                          ? "🐟"
-                          : category === "drinks"
-                          ? "🥤"
-                          : "🍽️"}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* Featured Item */}
-              {foods.length > 0 && (
-                <div className="p-4 bg-gradient-to-br from-orange-100 to-yellow-100">
-                  <div className="text-center">
-                    <div className="mb-2 text-sm font-semibold text-orange-600">
-                      Today's Special
-                    </div>
-                    <div className="relative inline-block">
-                      <img
-                        src={foods[rotatingFoodIndex % foods.length].images[0]}
-                        alt={foods[rotatingFoodIndex % foods.length].name}
-                        className="h-24 w-24 object-cover rounded-full mx-auto border-2 border-orange-300"
-                      />
-                      <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1">
-                        HOT!
-                      </div>
-                    </div>
-                    <div className="mt-2 font-medium">
-                      {foods[rotatingFoodIndex % foods.length].name}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {foods[rotatingFoodIndex % foods.length].isOnOffer ? (
-                        <>
-                          <span className="line-through text-gray-500 mr-2">
-                            KSh {foods[rotatingFoodIndex % foods.length].price}
-                          </span>
-                          <span className="text-red-900 font-bold">
-                            KSh{" "}
-                            {foods[rotatingFoodIndex % foods.length].offerPrice}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-red-900 font-bold">
-                          KSh {foods[rotatingFoodIndex % foods.length].price}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Menu Items - Right Side */}
-          <div
-            className={`lg:col-span-3 transition-all duration-1000 ${
-              isLoaded
-                ? "translate-x-0 opacity-100"
-                : "translate-x-20 opacity-0"
-            }`}
-          >
-            {/* Header with Info */}
-            <div className="bg-white rounded-t-2xl shadow-lg p-6 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  {activeCategory === "all"
-                    ? "All Menu Items"
-                    : activeCategory.charAt(0).toUpperCase() +
-                      activeCategory.slice(1)}
-                  <span className="ml-2 text-gray-500 text-lg font-normal">
-                    ({filteredItems.length} items)
-                  </span>
-                </h2>
-
-                {/* Custom Message for Category */}
-                <div className="bg-orange-100 text-orange-800 px-4 py-1 rounded-full text-sm font-medium">
-                  {activeCategory === "meat"
-                    ? "Hot Grilled Meat!"
-                    : activeCategory === "vegetarian"
-                    ? "Fresh Veggies!"
-                    : activeCategory === "seafood"
-                    ? "Coastal Special!"
-                    : activeCategory === "drinks"
-                    ? "Very Cold!"
-                    : "Delicious Options!"}
-                </div>
-              </div>
-
-              {searchTerm && filteredItems.length === 0 && (
-                <div className="mt-4 text-center py-3 bg-gray-50 rounded-lg">
-                  <p className="text-gray-600">
-                    No menu items for "
-                    <span className="font-medium">{searchTerm}</span>"
-                  </p>
-                  <button
-                    onClick={() => setSearchTerm("")}
-                    className="mt-2 text-sm text-red-900 hover:underline"
-                  >
-                    Clear search
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Menu Items Grid */}
-            <div
-              ref={menuRef}
-              className="bg-white rounded-b-2xl shadow-lg overflow-hidden"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 p-6 gap-6">
-                {filteredItems.map((item, index) => (
-                  <div
-                    key={item._id}
-                    className={`bg-white rounded-xl overflow-hidden transition-all duration-300 ${
-                      hoveredItem === index
-                        ? "shadow-xl transform -translate-y-1"
-                        : "shadow-md hover:shadow-lg"
-                    }`}
-                    onMouseEnter={() => setHoveredItem(index)}
-                    onMouseLeave={() => setHoveredItem(null)}
-                  >
-                    {/* Food Image with Steam Effect */}
-                    <div className="relative h-48 overflow-hidden">
-                      <img
-                        src={item.images[0]}
-                        alt={item.name}
-                        className="w-full h-full object-cover transition-transform duration-700 ease-in-out"
-                        style={{
-                          transform:
-                            hoveredItem === index ? "scale(1.1)" : "scale(1)",
-                        }}
-                      />
-
-                      {/* Overlay gradient */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-60"></div>
-
-                      {/* Favorite Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleFavorite(item._id);
-                        }}
-                        className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-md z-10"
-                      >
-                        <Heart
-                          size={16}
-                          className={
-                            favorites.includes(item._id)
-                              ? "fill-red-900 text-red-900"
-                              : "text-gray-400"
-                          }
-                        />
-                      </button>
-
-                      {/* Special Tags */}
-                      <div className="absolute top-4 left-4 flex flex-col space-y-2">
-                        {item.isOnOffer && (
-                          <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                            {Math.round(
-                              (1 - item.offerPrice / item.price) * 100
-                            )}
-                            % OFF
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Item price */}
-                      <div className="absolute bottom-4 right-4 bg-white/90 text-red-900 font-bold px-3 py-1 rounded-full shadow-lg">
-                        {item.isOnOffer ? (
-                          <>
-                            <span className="line-through text-xs mr-1 text-gray-500">
-                              KSh {item.price}
-                            </span>
-                            KSh {item.offerPrice}
-                          </>
-                        ) : (
-                          `KSh ${item.price}`
-                        )}
-                      </div>
-
-                      {/* Item name */}
-                      <h3 className="absolute bottom-4 left-4 text-white font-bold text-xl drop-shadow-lg">
-                        {item.name}
-                      </h3>
-                    </div>
-
-                    {/* Item Details */}
-                    <div className="p-4">
-                      {/* Rating */}
-                      <div className="flex items-center mb-2">
-                        <div className="flex">
-                          {[...Array(5)].map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`w-4 h-4 ${
-                                i < Math.floor(item.rating || 4.5)
-                                  ? "text-yellow-400 fill-yellow-400"
-                                  : "text-gray-300"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="ml-2 text-sm text-gray-600">
-                          {item.rating || 4.5}
-                        </span>
-                        <span className="ml-1 flex items-center text-gray-500">
-                          <ThumbsUp className="w-3 h-3 mr-1" />
-                          <span className="text-xs">
-                            {Math.floor(Math.random() * 100) + 50}
-                          </span>
-                        </span>
-                      </div>
-
-                      {/* Description */}
-                      <p className="text-gray-600 text-sm mb-3">
-                        {item.description}
-                      </p>
-
-                      {/* Tags */}
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {item.category && (
-                          <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
-                            {item.category}
-                          </span>
-                        )}
-                        {item.isSpicy && (
-                          <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-600">
-                            Hot Hot
-                          </span>
-                        )}
-                        {item.isCold && (
-                          <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-600">
-                            Very Cold
-                          </span>
-                        )}
-                        {item.price < 500 && (
-                          <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-600">
-                            Affordable
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Order Button */}
-                      <div className="flex justify-between items-center">
+                  {/* Tags Filter */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Tag className="inline w-4 h-4 mr-1" />
+                      Food Tags
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {foodTags.map((tag) => (
                         <button
-                          onClick={() => handlePlaceOrder(item)}
-                          className="flex items-center bg-red-900 hover:bg-red-800 text-white px-4 py-2 rounded-full transition-colors text-sm"
+                          key={tag}
+                          onClick={() => toggleTag(tag)}
+                          className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                            selectedTags.includes(tag)
+                              ? "bg-red-900 text-white"
+                              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                          }`}
                         >
-                          <PlusCircle className="w-4 h-4 mr-1" />
-                          Add to Order
+                          {tag}
                         </button>
-                        <button className="text-gray-500 hover:text-red-900 text-sm underline">
-                          More Details
-                        </button>
-                      </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
 
-              {/* Empty state when no items match */}
-              {filteredItems.length === 0 && !searchTerm && (
-                <div className="p-12 flex flex-col items-center justify-center text-center">
-                  <div className="bg-gray-100 p-6 rounded-full mb-4">
-                    <Search className="w-8 h-8 text-gray-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                    No items found
-                  </h3>
-                  <p className="text-gray-500 max-w-sm">
-                    Try adjusting your filters or budget to see more delicious
-                    options!
-                  </p>
+                {/* Reset Filters */}
+                <div className="mt-4 flex justify-end">
                   <button
                     onClick={resetFilters}
-                    className="mt-4 bg-red-900 text-white px-6 py-2 rounded-full hover:bg-red-800 transition-colors"
+                    className="text-red-900 hover:text-red-700 font-medium text-sm"
                   >
-                    Reset Filters
+                    Reset All Filters
                   </button>
                 </div>
-              )}
-            </div>
-
-            {/* "Load More" Button (shown when there are many items) */}
-            {filteredItems.length > 4 && (
-              <div className="mt-6 text-center">
-                <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-6 py-3 rounded-full transition-colors inline-flex items-center">
-                  <span>Load More Items</span>
-                  <ChevronDown className="ml-2 w-4 h-4" />
-                </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* Footer message with Animation */}
-        <div className="mt-12 text-center px-4">
-          <div
-            className={`transition-all duration-1000 ${
-              isLoaded
-                ? "translate-y-0 opacity-100"
-                : "translate-y-10 opacity-0"
-            }`}
-          >
-            <p className="text-gray-500 italic">
-              Enhance your experience by using our filters to find dishes that
-              suit your taste!
-            </p>
-            <p className="text-gray-600 font-medium mt-2">
-              Need assistance with your order? Call us at{" "}
-              <span className="text-red-900">+254 712 345 678</span>
-            </p>
+        {/* Category Tabs */}
+        <div className="mb-8">
+          <div className="flex overflow-x-auto space-x-4 pb-2">
+            {categories.map((category) => (
+              <button
+                key={category}
+                onClick={() => handleCategoryClick(category)}
+                className={`px-6 py-3 rounded-full font-medium text-sm whitespace-nowrap transition-all duration-200 ${
+                  activeCategory === category
+                    ? "bg-red-900 text-white shadow-lg"
+                    : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                }`}
+              >
+                {category.charAt(0).toUpperCase() + category.slice(1)}
+              </button>
+            ))}
           </div>
+        </div>
+
+        {/* Results Count */}
+        <div className="mb-6">
+          <p className="text-gray-600">
+            Showing{" "}
+            <span className="font-semibold">{filteredItems.length}</span>{" "}
+            delicious items
+            {searchTerm && (
+              <span>
+                {" "}
+                for "<span className="font-semibold">{searchTerm}</span>"
+              </span>
+            )}
+          </p>
+        </div>
+
+        {/* Menu Grid */}
+        <div
+          ref={menuRef}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-h-screen overflow-y-auto"
+        >
+          {filteredItems.length > 0 ? (
+            filteredItems.map((food, index) => (
+              <div
+                key={food._id}
+                className={`bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group cursor-pointer transform hover:-translate-y-2 ${
+                  isLoaded
+                    ? "translate-y-0 opacity-100"
+                    : "translate-y-20 opacity-0"
+                }`}
+                style={{
+                  transitionDelay: `${index * 0.1}s`,
+                }}
+                onMouseEnter={() => setHoveredItem(food._id)}
+                onMouseLeave={() => setHoveredItem(null)}
+              >
+                {/* Food Image */}
+                <div className="relative overflow-hidden h-48">
+                  <img
+                    src={food.images[0]}
+                    alt={food.name}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                  />
+
+                  {/* Overlay Tags */}
+                  <div className="absolute top-3 left-3 flex flex-col gap-2">
+                    {food.isOnOffer && (
+                      <span className="bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold">
+                        Offer
+                      </span>
+                    )}
+                    {food.isPopular && (
+                      <span className="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                        <Star className="w-3 h-3" />
+                        Popular
+                      </span>
+                    )}
+                    {food.isSpicy && (
+                      <span className="bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+                        🔥 Spicy
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Favorite Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(food._id);
+                    }}
+                    className="absolute top-3 right-3 bg-white/80 backdrop-blur-sm p-2 rounded-full hover:bg-white transition-colors"
+                  >
+                    <Heart
+                      className={`w-4 h-4 ${
+                        favorites.includes(food._id)
+                          ? "fill-red-500 text-red-500"
+                          : "text-gray-600"
+                      }`}
+                    />
+                  </button>
+
+                  {/* Quick Add Button - Shows on Hover */}
+                  <div
+                    className={`absolute bottom-3 right-3 transition-all duration-300 ${
+                      hoveredItem === food._id
+                        ? "opacity-100 translate-y-0"
+                        : "opacity-0 translate-y-4"
+                    }`}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePlaceOrder(food);
+                      }}
+                      className="bg-red-900 text-white p-2 rounded-full hover:bg-red-800 transition-colors shadow-lg"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Food Info */}
+                <div className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <h3 className="font-bold text-lg text-gray-800 line-clamp-1">
+                      {food.name}
+                    </h3>
+                    <div className="flex items-center space-x-1 text-yellow-500">
+                      <Star className="w-4 h-4 fill-current" />
+                      <span className="text-sm text-gray-600">
+                        {food.rating || "4.5"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                    {food.description || "Delicious and freshly prepared"}
+                  </p>
+
+                  {/* Tags */}
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {food.isCold && (
+                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                        Cold
+                      </span>
+                    )}
+                    {food.isSweet && (
+                      <span className="bg-pink-100 text-pink-800 px-2 py-1 rounded-full text-xs">
+                        Sweet
+                      </span>
+                    )}
+                    {food.isFilling && (
+                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
+                        Filling
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Price and Action */}
+                  <div className="flex items-center justify-between">
+                    <div className="text-lg font-bold text-gray-800">
+                      {food.isOnOffer ? (
+                        <div className="flex items-center space-x-2">
+                          <span className="text-red-600">
+                            {formatPrice(food.offerPrice)}
+                          </span>
+                          <span className="line-through text-gray-500 text-sm">
+                            {formatPrice(food.price)}
+                          </span>
+                        </div>
+                      ) : (
+                        formatPrice(food.price)
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => handlePlaceOrder(food)}
+                      className="bg-red-900 text-white px-4 py-2 rounded-full hover:bg-red-800 transition-colors flex items-center space-x-2 text-sm font-medium"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      <span>Add</span>
+                    </button>
+                  </div>
+
+                  {/* Preparation Time */}
+                  <div className="flex items-center justify-center mt-3 text-gray-500 text-xs">
+                    <Clock className="w-3 h-3 mr-1" />
+                    <span>{food.prepTime || "15-20"} mins</span>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="col-span-full text-center py-16">
+              <div className="text-6xl mb-4">🍽️</div>
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                No items found
+              </h3>
+              <p className="text-gray-500 mb-4">
+                Try adjusting your filters or search terms
+              </p>
+              <button
+                onClick={resetFilters}
+                className="bg-red-900 text-white px-6 py-3 rounded-full hover:bg-red-800 transition-colors"
+              >
+                Reset Filters
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Cart Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <>
-            <motion.div
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9998]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsModalOpen(false)}
-            />
-
-            <motion.div
-              className={`fixed bottom-0 left-0 w-full max-h-[80vh] rounded-t-lg bg-white shadow-2xl p-6 overflow-y-auto z-[9999]`}
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-red-900">Your Order</h2>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors duration-200"
-                >
-                  <X size={20} />
-                </button>
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center space-x-3">
+                <ShoppingCart className="w-6 h-6 text-red-900" />
+                <h2 className="text-2xl font-bold text-gray-800">Your Cart</h2>
+                {getTotalCartQuantity() > 0 && (
+                  <span className="bg-red-900 text-white px-3 py-1 rounded-full text-sm">
+                    {getTotalCartQuantity()} items
+                  </span>
+                )}
               </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-gray-500 hover:text-gray-700 p-2"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
 
+            {/* Cart Items */}
+            <div className="flex-1 overflow-y-auto max-h-96">
               {cart.length > 0 ? (
-                <>
-                  <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                    {cart.map((food, index) => (
-                      <motion.div
-                        key={index}
-                        className="flex items-center gap-4 bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-colors duration-200 group relative"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                      >
-                        <img
-                          src={food.images[0]}
-                          alt={food.name}
-                          className="w-20 h-20 object-cover rounded-lg shadow-md"
-                        />
-                        <div className="flex-1">
-                          <p className="text-base font-semibold text-gray-800">
-                            {food.name}
-                          </p>
-                          <p className="text-red-900 text-lg font-bold">
-                            KSh. {food.isOnOffer ? food.offerPrice : food.price}
-                          </p>
-                        </div>
-                        <motion.button
-                          onClick={() => handleRemoveFromCart(index)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity absolute -right-2 -top-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs hover:bg-red-600 shadow-md"
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                        >
-                          <X size={12} />
-                        </motion.button>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  <motion.div
-                    className="mt-6 border-t border-gray-200 pt-4"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                  >
-                    {/* Order Summary */}
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>Subtotal ({cart.length} items)</span>
-                        <span className="font-medium text-gray-800">
-                          KSh.{" "}
-                          {cart.reduce(
-                            (total, food) =>
-                              total +
-                              (food.isOnOffer ? food.offerPrice : food.price),
-                            0
-                          )}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>Delivery Fee</span>
-                        <span className="font-medium text-gray-800">
-                          KSh. 150
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>Service Fee</span>
-                        <span className="font-medium text-gray-800">
-                          KSh. 50
-                        </span>
-                      </div>
-
-                      <div className="h-px bg-gray-200 my-3"></div>
-
-                      <div className="flex justify-between font-bold text-lg">
-                        <span className="text-gray-800">Total</span>
-                        <span className="text-red-900">
-                          KSh.{" "}
-                          {cart.reduce(
-                            (total, food) =>
-                              total +
-                              (food.isOnOffer ? food.offerPrice : food.price),
-                            0
-                          ) + 200}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Estimated Delivery Time */}
-                    <div className="mt-4 p-4 bg-amber-50 rounded-lg flex items-center gap-3 border border-amber-100">
-                      <Clock size={20} className="text-amber-500" />
-                      <div>
-                        <p className="font-medium text-gray-800">
-                          Estimated Delivery
-                        </p>
-                        <p className="text-gray-600 text-sm">25-40 minutes</p>
-                      </div>
-                    </div>
-
-                    {/* Checkout Button */}
-                    <motion.button
-                      className="w-full mt-6 py-4 bg-red-900 rounded-lg text-white font-bold uppercase shadow-lg hover:bg-red-800"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        const token = localStorage.getItem("token");
-                        if (token) {
-                          const totalAmount =
-                            cart.reduce(
-                              (total, food) =>
-                                total +
-                                (food.isOnOffer ? food.offerPrice : food.price),
-                              0
-                            ) + 200;
-                          navigate("/checkout", {
-                            state: {
-                              cart: cart,
-                              total: totalAmount,
-                            },
-                          });
-                        } else {
-                          navigate("/login");
-                        }
-                      }}
+                <div className="p-6 space-y-4">
+                  {cart.map((item, index) => (
+                    <div
+                      key={`${item._id}-${index}`}
+                      className="flex items-center space-x-4 bg-gray-50 p-4 rounded-xl"
                     >
-                      Complete Order
-                    </motion.button>
-
-                    {/* Security Notice */}
-                    <p className="text-center text-xs text-gray-500 mt-4 flex items-center justify-center gap-2">
-                      <span>🔒</span>
-                      Secure payment processing
-                    </p>
-                  </motion.div>
-                </>
+                      <img
+                        src={item.images[0]}
+                        alt={item.name}
+                        className="w-16 h-16 rounded-xl object-cover"
+                      />
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-800">
+                          {item.name}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {formatPrice(
+                            item.isOnOffer ? item.offerPrice : item.price
+                          )}{" "}
+                          each
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <button
+                          onClick={() =>
+                            updateQuantity(index, (item.quantity || 1) - 1)
+                          }
+                          className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="font-semibold min-w-[2rem] text-center">
+                          {item.quantity || 1}
+                        </span>
+                        <button
+                          onClick={() =>
+                            updateQuantity(index, (item.quantity || 1) + 1)
+                          }
+                          className="w-8 h-8 rounded-full bg-red-900 hover:bg-red-800 text-white flex items-center justify-center transition-colors"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-800">
+                          {formatPrice(
+                            (item.isOnOffer ? item.offerPrice : item.price) *
+                              (item.quantity || 1)
+                          )}
+                        </p>
+                        <button
+                          onClick={() => handleRemoveFromCart(index)}
+                          className="text-red-500 hover:text-red-700 text-sm mt-1"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{
-                      scale: 1,
-                      rotate: [0, 10, -10, 10, 0],
-                    }}
-                    transition={{ duration: 0.5 }}
-                    className="mb-6"
-                  >
-                    <ShoppingCart size={48} className="text-gray-300" />
-                  </motion.div>
-                  <h3 className="text-xl font-bold text-gray-700 mb-2">
+                <div className="p-12 text-center">
+                  <div className="text-6xl mb-4">🛒</div>
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">
                     Your cart is empty
                   </h3>
-                  <p className="text-gray-500 text-center mb-6">
-                    Looks like you haven't added anything to your cart yet
+                  <p className="text-gray-500">
+                    Add some delicious items to get started!
                   </p>
-                  <motion.button
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-6 py-3 bg-red-900 text-white rounded-lg font-medium hover:bg-red-800 transition-colors"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    Browse Menu
-                  </motion.button>
                 </div>
               )}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+            </div>
+
+            {/* Cart Footer */}
+            {cart.length > 0 && (
+              <div className="border-t border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xl font-bold text-gray-800">
+                    Total:
+                  </span>
+                  <span className="text-2xl font-bold text-red-900">
+                    {formatPrice(getCartTotal())}
+                  </span>
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={clearCart}
+                    className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl hover:bg-gray-300 transition-colors font-medium"
+                  >
+                    Clear Cart
+                  </button>
+                  <button
+                    onClick={handleCheckout}
+                    className="flex-2 bg-red-900 text-white py-3 px-6 rounded-xl hover:bg-red-800 transition-colors font-medium"
+                  >
+                    Proceed to Checkout
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Loading overlay for cart operations */}
+      {cartLoading && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-xl shadow-lg">
+            <div className="flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-900"></div>
+              <span className="text-gray-700">Updating cart...</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

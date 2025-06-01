@@ -23,11 +23,12 @@ import {
   MapPin,
   ShoppingBag,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 
 export default function CustomerOrders() {
   const [darkMode, setDarkMode] = useState(false);
-  const [activeTab, setActiveTab] = useState("Food Processing");
+  const [activeTab, setActiveTab] = useState("all");
   const [expandedOrderId, setExpandedOrderId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
@@ -35,32 +36,41 @@ export default function CustomerOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [updating, setUpdating] = useState(null); // Track which order is being updated
 
   // Status configuration
   const statusConfig = {
     "Food Processing": {
       icon: <Clock size={20} className="text-yellow-500" />,
       color: "yellow",
+      bgColor: "bg-yellow-100 text-yellow-800",
       next: "On the Way",
       nextLabel: "Set Out for Delivery",
+      canCancel: true,
     },
     "On the Way": {
       icon: <TruckIcon size={20} className="text-purple-500" />,
       color: "purple",
+      bgColor: "bg-purple-100 text-purple-800",
       next: "Delivered",
       nextLabel: "Mark as Delivered",
+      canCancel: false,
     },
     Delivered: {
       icon: <CheckCircle size={20} className="text-green-500" />,
       color: "green",
+      bgColor: "bg-green-100 text-green-800",
       next: null,
       nextLabel: null,
+      canCancel: false,
     },
     Cancelled: {
       icon: <AlertCircle size={20} className="text-red-500" />,
       color: "red",
+      bgColor: "bg-red-100 text-red-800",
       next: null,
       nextLabel: null,
+      canCancel: false,
     },
   };
 
@@ -68,16 +78,25 @@ export default function CustomerOrders() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const response = await axios.get("http://localhost:4000/api/order/list");
+      setError(null);
+
+      const params = new URLSearchParams();
+      if (searchTerm) params.append("search", searchTerm);
+      if (statusFilter !== "all") params.append("status", statusFilter);
+
+      const response = await axios.get(
+        `http://localhost:4000/api/order/list?${params}`
+      );
 
       if (response.data.success) {
         setOrders(response.data.orders);
+        console.log("✅ Orders fetched:", response.data.orders.length);
       } else {
-        setError("Failed to fetch orders");
+        setError(response.data.message || "Failed to fetch orders");
       }
     } catch (error) {
-      console.error("Error fetching orders:", error);
-      setError("Error connecting to server");
+      console.error("❌ Error fetching orders:", error);
+      setError(error.response?.data?.message || "Error connecting to server");
     } finally {
       setLoading(false);
     }
@@ -86,6 +105,8 @@ export default function CustomerOrders() {
   // Update order status
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
+      setUpdating(orderId);
+
       const response = await axios.post(
         "http://localhost:4000/api/order/status",
         {
@@ -96,17 +117,49 @@ export default function CustomerOrders() {
 
       if (response.data.success) {
         // Update local state
-        setOrders(
-          orders.map((order) =>
+        setOrders((prevOrders) =>
+          prevOrders.map((order) =>
             order._id === orderId ? { ...order, status: newStatus } : order
           )
         );
+
+        // Show success message
+        console.log(`✅ Order ${orderId} updated to ${newStatus}`);
       } else {
         alert("Failed to update order status: " + response.data.message);
       }
     } catch (error) {
-      console.error("Error updating order status:", error);
-      alert("Error updating order status. Please try again.");
+      console.error("❌ Error updating order status:", error);
+      alert(
+        error.response?.data?.message ||
+          "Error updating order status. Please try again."
+      );
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  // Toggle order payment status (mock function - you may want to implement this)
+  const togglePaymentStatus = async (orderId, currentPaymentStatus) => {
+    try {
+      setUpdating(orderId);
+
+      // This would need a separate endpoint in your backend
+      // For now, we'll just update the local state
+      setOrders((prevOrders) =>
+        prevOrders.map((order) =>
+          order._id === orderId
+            ? { ...order, payment: !currentPaymentStatus }
+            : order
+        )
+      );
+
+      console.log(`✅ Payment status toggled for order ${orderId}`);
+    } catch (error) {
+      console.error("❌ Error updating payment status:", error);
+      alert("Error updating payment status. Please try again.");
+    } finally {
+      setUpdating(null);
     }
   };
 
@@ -114,6 +167,15 @@ export default function CustomerOrders() {
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  // Re-fetch when search or filter changes
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      fetchOrders();
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchTerm, statusFilter]);
 
   useEffect(() => {
     // Apply dark mode to body
@@ -124,30 +186,10 @@ export default function CustomerOrders() {
     }
   }, [darkMode]);
 
-  // Filter orders based on active tab and search term
+  // Filter orders based on active tab
   const filteredOrders = orders.filter((order) => {
-    // Filter by status
-    let statusMatch = true;
-    if (activeTab !== "all") {
-      statusMatch = order.status === activeTab;
-    }
-
-    // Apply status filter if it's not 'all'
-    if (statusFilter !== "all" && order.status !== statusFilter) {
-      return false;
-    }
-
-    // Filter by search term
-    const searchMatch =
-      order._id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.address.contactName
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      order.items.some((item) =>
-        item.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-
-    return statusMatch && searchMatch;
+    if (activeTab === "all") return true;
+    return order.status === activeTab;
   });
 
   // Calculate statistics
@@ -162,11 +204,7 @@ export default function CustomerOrders() {
 
   // Toggle expanded order
   const toggleOrderExpand = (orderId) => {
-    if (expandedOrderId === orderId) {
-      setExpandedOrderId(null);
-    } else {
-      setExpandedOrderId(orderId);
-    }
+    setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
   };
 
   // Format date
@@ -182,17 +220,19 @@ export default function CustomerOrders() {
     });
   };
 
+  // Loading state
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <RefreshCw className="animate-spin h-16 w-16 text-blue-500 mx-auto" />
           <p className="mt-4 text-gray-600">Loading orders...</p>
         </div>
       </div>
     );
   }
 
+  // Error state
   if (error) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-50">
@@ -204,7 +244,7 @@ export default function CustomerOrders() {
           <p className="mt-2 text-gray-600">{error}</p>
           <button
             onClick={fetchOrders}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
           >
             Try Again
           </button>
@@ -230,10 +270,10 @@ export default function CustomerOrders() {
           </div>
           <button
             onClick={() => setDarkMode(!darkMode)}
-            className={`p-2 rounded-full ${
+            className={`p-2 rounded-full transition-colors ${
               darkMode
-                ? "bg-gray-700 text-yellow-300"
-                : "bg-gray-100 text-gray-700"
+                ? "bg-gray-700 text-yellow-300 hover:bg-gray-600"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
             {darkMode ? <Sun size={20} /> : <Moon size={20} />}
@@ -245,52 +285,22 @@ export default function CustomerOrders() {
       <main className="container mx-auto p-4">
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div
-            className={`p-4 rounded-lg shadow-md ${
-              darkMode ? "bg-gray-800" : "bg-white"
-            }`}
-          >
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Food Processing</span>
-              <Clock size={20} className="text-yellow-500" />
-            </div>
-            <p className="text-2xl font-bold mt-2">
-              {stats["Food Processing"]}
-            </p>
-          </div>
-          <div
-            className={`p-4 rounded-lg shadow-md ${
-              darkMode ? "bg-gray-800" : "bg-white"
-            }`}
-          >
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">On the Way</span>
-              <TruckIcon size={20} className="text-purple-500" />
-            </div>
-            <p className="text-2xl font-bold mt-2">{stats["On the Way"]}</p>
-          </div>
-          <div
-            className={`p-4 rounded-lg shadow-md ${
-              darkMode ? "bg-gray-800" : "bg-white"
-            }`}
-          >
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Delivered</span>
-              <CheckCircle size={20} className="text-green-500" />
-            </div>
-            <p className="text-2xl font-bold mt-2">{stats["Delivered"]}</p>
-          </div>
-          <div
-            className={`p-4 rounded-lg shadow-md ${
-              darkMode ? "bg-gray-800" : "bg-white"
-            }`}
-          >
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Cancelled</span>
-              <AlertCircle size={20} className="text-red-500" />
-            </div>
-            <p className="text-2xl font-bold mt-2">{stats["Cancelled"]}</p>
-          </div>
+          {Object.entries(stats)
+            .filter(([key]) => key !== "total")
+            .map(([status, count]) => (
+              <div
+                key={status}
+                className={`p-4 rounded-lg shadow-md transition-colors ${
+                  darkMode ? "bg-gray-800" : "bg-white"
+                }`}
+              >
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">{status}</span>
+                  {statusConfig[status]?.icon}
+                </div>
+                <p className="text-2xl font-bold mt-2">{count}</p>
+              </div>
+            ))}
         </div>
 
         {/* Search & Filter */}
@@ -301,15 +311,16 @@ export default function CustomerOrders() {
         >
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="relative w-full md:w-1/2">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search size={18} className="text-gray-400" />
-              </div>
+              <Search
+                size={18}
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              />
               <input
                 type="text"
                 placeholder="Search orders by ID, customer or items..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className={`pl-10 pr-4 py-2 w-full rounded-lg ${
+                className={`pl-10 pr-4 py-2 w-full rounded-lg transition-colors ${
                   darkMode
                     ? "bg-gray-700 text-gray-100 focus:bg-gray-600"
                     : "bg-gray-100 text-gray-800 focus:bg-white"
@@ -323,7 +334,7 @@ export default function CustomerOrders() {
               <div className="relative">
                 <button
                   onClick={() => setFilterMenuOpen(!filterMenuOpen)}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg ${
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
                     darkMode
                       ? "bg-gray-700 hover:bg-gray-600"
                       : "bg-gray-100 hover:bg-gray-200"
@@ -342,297 +353,262 @@ export default function CustomerOrders() {
                   <div
                     className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg z-10 ${
                       darkMode ? "bg-gray-700" : "bg-white"
+                    } border ${
+                      darkMode ? "border-gray-600" : "border-gray-200"
                     }`}
                   >
                     <div className="py-1">
-                      <button
-                        onClick={() => {
-                          setStatusFilter("all");
-                          setFilterMenuOpen(false);
-                        }}
-                        className={`block px-4 py-2 text-sm w-full text-left ${
-                          statusFilter === "all"
-                            ? "bg-blue-500 text-white"
-                            : darkMode
-                            ? "text-gray-100 hover:bg-gray-600"
-                            : "text-gray-800 hover:bg-gray-100"
-                        }`}
-                      >
-                        All Orders
-                      </button>
-                      <button
-                        onClick={() => {
-                          setStatusFilter("Food Processing");
-                          setFilterMenuOpen(false);
-                        }}
-                        className={`block px-4 py-2 text-sm w-full text-left ${
-                          statusFilter === "Food Processing"
-                            ? "bg-blue-500 text-white"
-                            : darkMode
-                            ? "text-gray-100 hover:bg-gray-600"
-                            : "text-gray-800 hover:bg-gray-100"
-                        }`}
-                      >
-                        Food Processing
-                      </button>
-                      <button
-                        onClick={() => {
-                          setStatusFilter("On the Way");
-                          setFilterMenuOpen(false);
-                        }}
-                        className={`block px-4 py-2 text-sm w-full text-left ${
-                          statusFilter === "On the Way"
-                            ? "bg-blue-500 text-white"
-                            : darkMode
-                            ? "text-gray-100 hover:bg-gray-600"
-                            : "text-gray-800 hover:bg-gray-100"
-                        }`}
-                      >
-                        On the Way
-                      </button>
-                      <button
-                        onClick={() => {
-                          setStatusFilter("Delivered");
-                          setFilterMenuOpen(false);
-                        }}
-                        className={`block px-4 py-2 text-sm w-full text-left ${
-                          statusFilter === "Delivered"
-                            ? "bg-blue-500 text-white"
-                            : darkMode
-                            ? "text-gray-100 hover:bg-gray-600"
-                            : "text-gray-800 hover:bg-gray-100"
-                        }`}
-                      >
-                        Delivered
-                      </button>
-                      <button
-                        onClick={() => {
-                          setStatusFilter("Cancelled");
-                          setFilterMenuOpen(false);
-                        }}
-                        className={`block px-4 py-2 text-sm w-full text-left ${
-                          statusFilter === "Cancelled"
-                            ? "bg-blue-500 text-white"
-                            : darkMode
-                            ? "text-gray-100 hover:bg-gray-600"
-                            : "text-gray-800 hover:bg-gray-100"
-                        }`}
-                      >
-                        Cancelled
-                      </button>
+                      {[
+                        "all",
+                        "Food Processing",
+                        "On the Way",
+                        "Delivered",
+                        "Cancelled",
+                      ].map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => {
+                            setStatusFilter(status);
+                            setFilterMenuOpen(false);
+                          }}
+                          className={`block px-4 py-2 text-sm w-full text-left transition-colors ${
+                            statusFilter === status
+                              ? "bg-blue-500 text-white"
+                              : darkMode
+                              ? "text-gray-100 hover:bg-gray-600"
+                              : "text-gray-800 hover:bg-gray-100"
+                          }`}
+                        >
+                          {status === "all" ? "All Orders" : status}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
               </div>
               <button
                 onClick={fetchOrders}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg"
+                disabled={loading}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center space-x-2"
               >
-                Refresh
+                <RefreshCw
+                  size={18}
+                  className={loading ? "animate-spin" : ""}
+                />
+                <span>Refresh</span>
               </button>
             </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 flex overflow-x-auto scrollbar-hide">
-          <button
-            onClick={() => setActiveTab("all")}
-            className={`px-4 py-2 flex items-center space-x-2 whitespace-nowrap ${
-              activeTab === "all"
-                ? `border-b-2 border-blue-500 font-medium ${
-                    darkMode ? "text-blue-400" : "text-blue-600"
-                  }`
-                : `${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } hover:text-gray-500`
-            }`}
-          >
-            <ShoppingBag size={18} />
-            <span>All Orders ({orders.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("Food Processing")}
-            className={`px-4 py-2 flex items-center space-x-2 whitespace-nowrap ${
-              activeTab === "Food Processing"
-                ? `border-b-2 border-yellow-500 font-medium ${
-                    darkMode ? "text-yellow-400" : "text-yellow-600"
-                  }`
-                : `${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } hover:text-gray-500`
-            }`}
-          >
-            <Clock size={18} />
-            <span>Food Processing ({stats["Food Processing"]})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("On the Way")}
-            className={`px-4 py-2 flex items-center space-x-2 whitespace-nowrap ${
-              activeTab === "On the Way"
-                ? `border-b-2 border-purple-500 font-medium ${
-                    darkMode ? "text-purple-400" : "text-purple-600"
-                  }`
-                : `${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } hover:text-gray-500`
-            }`}
-          >
-            <TruckIcon size={18} />
-            <span>On the Way ({stats["On the Way"]})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("Delivered")}
-            className={`px-4 py-2 flex items-center space-x-2 whitespace-nowrap ${
-              activeTab === "Delivered"
-                ? `border-b-2 border-green-500 font-medium ${
-                    darkMode ? "text-green-400" : "text-green-600"
-                  }`
-                : `${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } hover:text-gray-500`
-            }`}
-          >
-            <CheckCircle size={18} />
-            <span>Delivered ({stats["Delivered"]})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("Cancelled")}
-            className={`px-4 py-2 flex items-center space-x-2 whitespace-nowrap ${
-              activeTab === "Cancelled"
-                ? `border-b-2 border-red-500 font-medium ${
-                    darkMode ? "text-red-400" : "text-red-600"
-                  }`
-                : `${
-                    darkMode ? "text-gray-400" : "text-gray-600"
-                  } hover:text-gray-500`
-            }`}
-          >
-            <AlertCircle size={18} />
-            <span>Cancelled ({stats["Cancelled"]})</span>
-          </button>
+        <div className="mb-6">
+          <div className="flex space-x-2 overflow-x-auto">
+            {[
+              "all",
+              "Food Processing",
+              "On the Way",
+              "Delivered",
+              "Cancelled",
+            ].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
+                  activeTab === tab
+                    ? "bg-blue-500 text-white"
+                    : darkMode
+                    ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    : "bg-white text-gray-700 hover:bg-gray-100"
+                } shadow-md`}
+              >
+                {tab === "all" ? "All Orders" : tab}
+                <span className="ml-2 px-2 py-1 text-xs rounded-full bg-opacity-20 bg-white">
+                  {tab === "all" ? stats.total : stats[tab] || 0}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Order List */}
+        {/* Orders List */}
         <div className="space-y-4">
-          {filteredOrders.length > 0 ? (
+          {filteredOrders.length === 0 ? (
+            <div
+              className={`text-center py-12 ${
+                darkMode ? "bg-gray-800" : "bg-white"
+              } rounded-lg shadow-md`}
+            >
+              <ClipboardList size={48} className="mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-500 mb-2">
+                No orders found
+              </h3>
+              <p className="text-gray-400">
+                {searchTerm || statusFilter !== "all"
+                  ? "Try adjusting your search or filter criteria"
+                  : "Orders will appear here once they are placed"}
+              </p>
+            </div>
+          ) : (
             filteredOrders.map((order) => (
               <div
                 key={order._id}
-                className={`rounded-lg shadow-md overflow-hidden transition-all duration-300 ${
-                  darkMode
-                    ? "bg-gray-800 hover:bg-gray-750"
-                    : "bg-white hover:bg-gray-50"
+                className={`rounded-lg shadow-md transition-all duration-200 ${
+                  darkMode ? "bg-gray-800" : "bg-white"
+                } ${
+                  expandedOrderId === order._id ? "ring-2 ring-blue-500" : ""
                 }`}
               >
                 {/* Order Header */}
-                <div
-                  className={`p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center cursor-pointer`}
-                  onClick={() => toggleOrderExpand(order._id)}
-                >
-                  <div className="flex items-center space-x-3 mb-2 sm:mb-0">
-                    {statusConfig[order.status]?.icon || (
-                      <Clock size={20} className="text-gray-500" />
-                    )}
+                <div className="p-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="font-semibold text-lg">
+                          Order #{order.orderId || order._id}
+                        </h3>
+                        <div
+                          className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            statusConfig[order.status]?.bgColor ||
+                            "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          <div className="flex items-center space-x-1">
+                            {statusConfig[order.status]?.icon}
+                            <span>{order.status}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                    <div>
-                      <h3 className="font-medium">
-                        Order #{order._id.slice(-6)}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {formatDate(order.date)}
-                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div className="flex items-center space-x-2">
+                          <User size={16} className="text-gray-400" />
+                          <span>
+                            {order.address?.firstname} {order.address?.lastname}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Phone size={16} className="text-gray-400" />
+                          <span>{order.address?.phone}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <DollarSign size={16} className="text-gray-400" />
+                          <span className="font-medium">${order.amount}</span>
+                          <span
+                            className={`px-2 py-1 rounded text-xs ${
+                              order.payment
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {order.payment ? "Paid" : "Unpaid"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 text-sm text-gray-500">
+                        <span>{formatDate(order.date)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => toggleOrderExpand(order._id)}
+                        className={`p-2 rounded-lg transition-colors ${
+                          darkMode ? "hover:bg-gray-700" : "hover:bg-gray-100"
+                        }`}
+                      >
+                        {expandedOrderId === order._id ? (
+                          <ChevronUp size={20} />
+                        ) : (
+                          <ChevronDown size={20} />
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-3 w-full sm:w-auto">
-                    <div className="flex items-center space-x-2">
-                      <User
-                        size={16}
-                        className={darkMode ? "text-gray-400" : "text-gray-500"}
-                      />
-                      <span className="text-sm">
-                        {order.address.contactName}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center space-x-2 ml-auto sm:ml-0">
-                      <DollarSign size={16} className="text-green-500" />
-                      <span className="font-medium">
-                        KES {order.amount.toFixed(2)}
-                      </span>
-                    </div>
-
-                    {expandedOrderId === order._id ? (
-                      <ChevronUp
-                        size={20}
-                        className={darkMode ? "text-gray-400" : "text-gray-600"}
-                      />
-                    ) : (
-                      <ChevronDown
-                        size={20}
-                        className={darkMode ? "text-gray-400" : "text-gray-600"}
-                      />
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {statusConfig[order.status]?.next && (
+                      <button
+                        onClick={() =>
+                          updateOrderStatus(
+                            order._id,
+                            statusConfig[order.status].next
+                          )
+                        }
+                        disabled={updating === order._id}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center space-x-2"
+                      >
+                        {updating === order._id ? (
+                          <RefreshCw size={16} className="animate-spin" />
+                        ) : (
+                          statusConfig[statusConfig[order.status].next]?.icon
+                        )}
+                        <span>{statusConfig[order.status].nextLabel}</span>
+                      </button>
                     )}
+
+                    {statusConfig[order.status]?.canCancel && (
+                      <button
+                        onClick={() =>
+                          updateOrderStatus(order._id, "Cancelled")
+                        }
+                        disabled={updating === order._id}
+                        className="px-4 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center space-x-2"
+                      >
+                        <AlertCircle size={16} />
+                        <span>Cancel Order</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() =>
+                        togglePaymentStatus(order._id, order.payment)
+                      }
+                      disabled={updating === order._id}
+                      className={`px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 ${
+                        order.payment
+                          ? "bg-yellow-500 hover:bg-yellow-600 text-white"
+                          : "bg-green-500 hover:bg-green-600 text-white"
+                      }`}
+                    >
+                      <DollarSign size={16} />
+                      <span>{order.payment ? "Mark Unpaid" : "Mark Paid"}</span>
+                    </button>
                   </div>
                 </div>
 
-                {/* Order Details (Expanded) */}
+                {/* Expanded Content */}
                 {expandedOrderId === order._id && (
                   <div
-                    className={`p-4 border-t ${
-                      darkMode ? "border-gray-700" : "border-gray-200"
+                    className={`border-t px-4 py-4 ${
+                      darkMode
+                        ? "border-gray-700 bg-gray-750"
+                        : "border-gray-200 bg-gray-50"
                     }`}
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Customer Information */}
-                      <div
-                        className={`p-4 rounded-lg ${
-                          darkMode ? "bg-gray-700" : "bg-gray-50"
-                        }`}
-                      >
-                        <h4 className="font-medium mb-3">
-                          Customer Information
+                      <div>
+                        <h4 className="font-medium mb-3 flex items-center space-x-2">
+                          <User size={18} />
+                          <span>Customer Information</span>
                         </h4>
-                        <div className="space-y-2">
+                        <div className="space-y-2 text-sm">
                           <div className="flex items-center space-x-2">
-                            <User
-                              size={16}
-                              className={
-                                darkMode ? "text-gray-400" : "text-gray-600"
-                              }
-                            />
-                            <span>{order.address.contactName}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Mail
-                              size={16}
-                              className={
-                                darkMode ? "text-gray-400" : "text-gray-600"
-                              }
-                            />
-                            <span>{order.address.email}</span>
+                            <Mail size={14} className="text-gray-400" />
+                            <span>{order.address?.email}</span>
                           </div>
                           <div className="flex items-start space-x-2">
-                            <MapPin
-                              size={16}
-                              className={`mt-1 ${
-                                darkMode ? "text-gray-400" : "text-gray-600"
-                              }`}
-                            />
-                            <span>
-                              {order.address.street}, {order.address.town}
-                            </span>
-                          </div>
-                          <div className="flex items-start space-x-2 mt-2">
-                            <div
-                              className={`px-3 py-1 rounded-full ${
-                                order.payment
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-yellow-100 text-yellow-800"
-                              }`}
-                            >
-                              {order.payment ? "Paid" : "Payment Pending"}
+                            <MapPin size={14} className="text-gray-400 mt-1" />
+                            <div>
+                              <p>{order.address?.street}</p>
+                              <p>
+                                {order.address?.city}, {order.address?.state}{" "}
+                                {order.address?.zipcode}
+                              </p>
+                              <p>{order.address?.country}</p>
                             </div>
                           </div>
                         </div>
@@ -640,167 +616,40 @@ export default function CustomerOrders() {
 
                       {/* Order Items */}
                       <div>
-                        <h4 className="font-medium mb-3">Order Items</h4>
-                        <div
-                          className={`rounded-lg overflow-hidden ${
-                            darkMode ? "bg-gray-700" : "bg-gray-50"
-                          }`}
-                        >
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead
-                              className={
-                                darkMode ? "bg-gray-800" : "bg-gray-100"
-                              }
+                        <h4 className="font-medium mb-3 flex items-center space-x-2">
+                          <ShoppingBag size={18} />
+                          <span>Order Items</span>
+                        </h4>
+                        <div className="space-y-2">
+                          {order.items?.map((item, index) => (
+                            <div
+                              key={index}
+                              className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600 last:border-b-0"
                             >
-                              <tr>
-                                <th
-                                  scope="col"
-                                  className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                >
-                                  Item
-                                </th>
-                                <th
-                                  scope="col"
-                                  className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider"
-                                >
-                                  Qty
-                                </th>
-                                <th
-                                  scope="col"
-                                  className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider"
-                                >
-                                  Price
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody
-                              className={`divide-y ${
-                                darkMode ? "divide-gray-600" : "divide-gray-200"
-                              }`}
-                            >
-                              {order.items.map((item, idx) => (
-                                <tr key={idx}>
-                                  <td className="px-4 py-2">{item.name}</td>
-                                  <td className="px-4 py-2 text-center">
-                                    {item.quantity}
-                                  </td>
-                                  <td className="px-4 py-2 text-right">
-                                    KES{" "}
-                                    {(item.price * item.quantity).toFixed(2)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                            <tfoot
-                              className={
-                                darkMode ? "bg-gray-800" : "bg-gray-100"
-                              }
-                            >
-                              <tr>
-                                <td
-                                  colSpan="2"
-                                  className="px-4 py-2 text-right font-medium"
-                                >
-                                  Total
-                                </td>
-                                <td className="px-4 py-2 text-right font-bold">
-                                  KES {order.amount.toFixed(2)}
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
+                              <div>
+                                <p className="font-medium">{item.name}</p>
+                                <p className="text-sm text-gray-500">
+                                  Qty: {item.quantity}
+                                </p>
+                              </div>
+                              <span className="font-medium">
+                                ${(item.price * item.quantity).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                          <div className="pt-2 border-t border-gray-300 dark:border-gray-600">
+                            <div className="flex justify-between items-center font-bold">
+                              <span>Total</span>
+                              <span>${order.amount}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="mt-6 flex flex-wrap gap-2 justify-end">
-                      <div className="flex gap-2">
-                        <button
-                          className={`p-2 rounded-full ${
-                            darkMode
-                              ? "bg-gray-700 hover:bg-gray-600"
-                              : "bg-gray-100 hover:bg-gray-200"
-                          }`}
-                          title="Edit order"
-                        >
-                          <PenLine size={18} className="text-blue-500" />
-                        </button>
-                        <button
-                          className={`p-2 rounded-full ${
-                            darkMode
-                              ? "bg-gray-700 hover:bg-gray-600"
-                              : "bg-gray-100 hover:bg-gray-200"
-                          }`}
-                          title="Cancel order"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (
-                              window.confirm(
-                                "Are you sure you want to cancel this order?"
-                              )
-                            ) {
-                              updateOrderStatus(order._id, "Cancelled");
-                            }
-                          }}
-                        >
-                          <Trash size={18} className="text-red-500" />
-                        </button>
-                      </div>
-
-                      {order.status === "Food Processing" && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateOrderStatus(order._id, "On the Way");
-                          }}
-                          className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg flex items-center space-x-2"
-                        >
-                          <TruckIcon size={18} />
-                          <span>Set Out for Delivery</span>
-                        </button>
-                      )}
-
-                      {order.status === "On the Way" && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateOrderStatus(order._id, "Delivered");
-                          }}
-                          className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg flex items-center space-x-2"
-                        >
-                          <CheckCircle size={18} />
-                          <span>Mark as Delivered</span>
-                        </button>
-                      )}
-
-                      {!order.payment && (
-                        <button className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg flex items-center space-x-2">
-                          <DollarSign size={18} />
-                          <span>Mark as Paid</span>
-                        </button>
-                      )}
                     </div>
                   </div>
                 )}
               </div>
             ))
-          ) : (
-            <div
-              className={`p-8 text-center rounded-lg ${
-                darkMode ? "bg-gray-800" : "bg-white"
-              } shadow-md`}
-            >
-              <div className="inline-flex justify-center items-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-                <ClipboardList size={32} className="text-gray-400" />
-              </div>
-              <h3 className="text-lg font-medium mb-2">No orders found</h3>
-              <p className={`${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-                {searchTerm
-                  ? "Try adjusting your search or filters to find what you're looking for."
-                  : "There are no orders in this category at the moment."}
-              </p>
-            </div>
           )}
         </div>
       </main>
