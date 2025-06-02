@@ -103,15 +103,18 @@ export default function ClientOrders() {
         return;
       }
 
-      const response = await fetch(`https://ika-cua5-backend.vercel.app/api/order/list`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // or just token depending on your backend
-          // Alternative format if your backend expects just the token:
-          // 'token': token,
-        },
-      });
+      const response = await fetch(
+        `https://ika-cua5-backend.vercel.app/api/order/list`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`, // or just token depending on your backend
+            // Alternative format if your backend expects just the token:
+            // 'token': token,
+          },
+        }
+      );
 
       const data = await response.json();
 
@@ -321,7 +324,7 @@ export default function ClientOrders() {
                     </p>
                   </div>
                   <p className="font-bold">
-                    ${(item.price * item.quantity).toFixed(2)}
+                    Ksh. {(item.price * item.quantity).toFixed(2)}
                   </p>
                 </div>
               ))}
@@ -626,7 +629,7 @@ export default function ClientOrders() {
               </div>
             </div>
             <p className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              $
+              Ksh.
               {orders
                 .filter((o) => o.status === "Delivered")
                 .reduce((sum, order) => sum + order.amount, 0)
@@ -1038,12 +1041,12 @@ export default function ClientOrders() {
                               <div className="flex-1">
                                 <p className="font-medium">{item.name}</p>
                                 <p className="text-sm text-gray-500">
-                                  ${item.price} × {item.quantity}
+                                  Ksh. {item.price} × {item.quantity}
                                 </p>
                               </div>
                               <div className="text-right">
                                 <p className="font-bold text-green-600">
-                                  ${(item.price * item.quantity).toFixed(2)}
+                                  Ksh. {(item.price * item.quantity).toFixed(2)}
                                 </p>
                               </div>
                             </div>

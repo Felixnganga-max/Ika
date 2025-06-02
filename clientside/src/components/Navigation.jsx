@@ -39,6 +39,33 @@ const LoginInput = ({
   );
 };
 
+// Avatar Component
+const Avatar = ({ name, size = "md" }) => {
+  const getInitials = (name) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const sizeClasses = {
+    sm: "w-8 h-8 text-sm",
+    md: "w-10 h-10 text-base",
+    lg: "w-12 h-12 text-lg",
+  };
+
+  return (
+    <div
+      className={`${sizeClasses[size]} bg-gradient-to-br from-[#800020] to-[#600010] rounded-full flex items-center justify-center text-white font-semibold shadow-md`}
+    >
+      {getInitials(name)}
+    </div>
+  );
+};
+
 const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -57,6 +84,7 @@ const Navigation = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [userRole, setUserRole] = useState("");
+  const [userData, setUserData] = useState({});
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -66,6 +94,7 @@ const Navigation = () => {
     if (user) {
       const userData = JSON.parse(user);
       setUserRole(userData.role || "");
+      setUserData(userData);
     }
 
     const handleScroll = () => {
@@ -102,6 +131,7 @@ const Navigation = () => {
     setIsLoggedIn(false);
     setIsDropdownOpen(false);
     setUserRole("");
+    setUserData({});
   };
 
   const handleLoginSubmit = async () => {
@@ -147,6 +177,7 @@ const Navigation = () => {
         localStorage.setItem("token", data.user.accessToken);
         localStorage.setItem("user", JSON.stringify(data.user));
         setUserRole(data.user.role || "");
+        setUserData(data.user);
       } else {
         throw new Error("No access token received");
       }
@@ -188,6 +219,13 @@ const Navigation = () => {
     setPassword("");
     setConfirmPassword("");
     setName("");
+  };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
   };
 
   return (
@@ -255,7 +293,7 @@ const Navigation = () => {
                     }}
                     className="flex items-center gap-2 text-white hover:text-[#ffd700] px-3 py-2 rounded-full transition-colors focus:outline-none"
                   >
-                    <User size={20} />
+                    <Avatar name={userData.name} size="sm" />
                     <ChevronDown
                       size={16}
                       className={`transition-transform duration-200 ${
@@ -265,48 +303,55 @@ const Navigation = () => {
                   </button>
 
                   {isDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl py-2 transform opacity-100 scale-100 transition-all duration-200 origin-top-right">
-                      <div className="px-4 py-2 border-b border-gray-100">
-                        <p className="text-sm text-gray-500">Signed in as</p>
-                        <p className="text-sm font-medium text-gray-900">
-                          {JSON.parse(localStorage.getItem("user") || "{}")
-                            .name || "user@example.com"}
-                        </p>
+                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl py-2 transform opacity-100 scale-100 transition-all duration-200 origin-top-right">
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <div className="flex items-center gap-3 mb-2">
+                          <Avatar name={userData.name} size="md" />
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {getGreeting()},{" "}
+                              {userData.name?.split(" ")[0] || "there"}!
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {userData.email}
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="py-1">
                         <a
                           href="/profile"
-                          className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                          className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 transition-colors"
                           onClick={closeMenus}
                         >
-                          <User size={16} />
-                          Profile
-                        </a>
-                        <a
-                          href="/wishlist"
-                          className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50"
-                          onClick={closeMenus}
-                        >
-                          <Heart size={16} />
-                          Wishlist
+                          <User size={18} className="text-[#800020]" />
+                          <span className="font-medium">Profile</span>
                         </a>
                         <a
                           href="/orders"
-                          className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                          className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 transition-colors"
                           onClick={closeMenus}
                         >
-                          <Package size={16} />
-                          Orders
+                          <Package size={18} className="text-[#800020]" />
+                          <span className="font-medium">My Orders</span>
+                        </a>
+                        <a
+                          href="/wishlist"
+                          className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 transition-colors"
+                          onClick={closeMenus}
+                        >
+                          <Heart size={18} className="text-[#800020]" />
+                          <span className="font-medium">Wishlist</span>
                         </a>
                       </div>
 
                       <div className="border-t border-gray-100 pt-1">
                         <button
                           onClick={handleLogout}
-                          className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 transition-colors"
+                          className="w-full text-left px-4 py-3 text-red-600 hover:bg-red-50 transition-colors font-medium"
                         >
-                          Log out
+                          Sign Out
                         </button>
                       </div>
                     </div>
@@ -334,9 +379,26 @@ const Navigation = () => {
           {/* Mobile Menu */}
           <div
             className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
-              isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+              isOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
             }`}
           >
+            {/* Mobile User Greeting */}
+            {isLoggedIn && (
+              <div className="px-4 py-4 border-b border-[#ffd700]/20">
+                <div className="flex items-center gap-3 mb-3">
+                  <Avatar name={userData.name} size="lg" />
+                  <div className="flex-1">
+                    <p className="text-lg font-semibold text-white">
+                      {getGreeting()}, {userData.name?.split(" ")[0] || "there"}
+                      !
+                    </p>
+                    <p className="text-sm text-gray-300">{userData.email}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Mobile Menu Items */}
             <div className="px-2 pt-2 pb-3 space-y-1">
               {menuItems.map((item) => (
                 <a
@@ -349,43 +411,62 @@ const Navigation = () => {
                     }
                     closeMenus();
                   }}
-                  className="flex items-center gap-2 text-white hover:bg-[#ffd700]/10 block px-3 py-2 rounded-lg text-base font-medium transition-colors"
+                  className="flex items-center gap-3 text-white hover:bg-[#ffd700]/10 block px-3 py-3 rounded-lg text-base font-medium transition-colors"
                 >
                   {item.icon && <item.icon size={20} />}
                   {item.title}
                 </a>
               ))}
 
+              {/* Mobile Account Links */}
+              {isLoggedIn && (
+                <div className="border-t border-[#ffd700]/20 pt-2 mt-2">
+                  <a
+                    href="/profile"
+                    className="flex items-center gap-3 text-white hover:bg-[#ffd700]/10 px-3 py-3 rounded-lg text-base font-medium transition-colors"
+                    onClick={closeMenus}
+                  >
+                    <User size={20} className="text-[#ffd700]" />
+                    Profile
+                  </a>
+                  <a
+                    href="/orders"
+                    className="flex items-center gap-3 text-white hover:bg-[#ffd700]/10 px-3 py-3 rounded-lg text-base font-medium transition-colors"
+                    onClick={closeMenus}
+                  >
+                    <Package size={20} className="text-[#ffd700]" />
+                    My Orders
+                  </a>
+                  <a
+                    href="/wishlist"
+                    className="flex items-center gap-3 text-white hover:bg-[#ffd700]/10 px-3 py-3 rounded-lg text-base font-medium transition-colors"
+                    onClick={closeMenus}
+                  >
+                    <Heart size={20} className="text-[#ffd700]" />
+                    Wishlist
+                  </a>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-3 w-full text-left text-red-400 hover:text-red-300 hover:bg-red-500/10 px-3 py-3 rounded-lg text-base font-medium transition-colors mt-2"
+                  >
+                    <X size={20} />
+                    Sign Out
+                  </button>
+                </div>
+              )}
+
               {!isLoggedIn && (
                 <button
-                  onClick={() => setShowLoginModal(true)}
-                  className="block w-full text-center text-white bg-[#ffd700]/20 hover:bg-[#ffd700]/30 px-3 py-2 rounded-lg text-base font-medium transition-colors"
+                  onClick={() => {
+                    setShowLoginModal(true);
+                    closeMenus();
+                  }}
+                  className="block w-full text-center text-white bg-[#ffd700]/20 hover:bg-[#ffd700]/30 px-3 py-3 rounded-lg text-base font-medium transition-colors mt-4"
                 >
                   Sign In
                 </button>
               )}
             </div>
-
-            {isLoggedIn && (
-              <div className="px-5 py-3 border-t border-[#ffd700]/20">
-                <div className="flex items-center gap-3 px-2 py-2">
-                  <User size={20} className="text-[#ffd700]" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-white">
-                      {JSON.parse(localStorage.getItem("user") || "{}").name ||
-                        "user@example.com"}
-                    </p>
-                    <p className="text-xs text-gray-300">View profile</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="mt-2 w-full text-center text-red-400 hover:text-red-300 px-3 py-2 rounded-lg text-base font-medium transition-colors"
-                >
-                  Log out
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </nav>
