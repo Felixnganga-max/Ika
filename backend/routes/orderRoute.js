@@ -5,18 +5,26 @@ import {
   listOrders,
   userOrders,
   updateStatus,
+  cancelOrder,
+  mpesaCallback,
+  getPaymentConfirmations,
 } from "../controllers/orderController.js";
 import authMiddleware from "../middleware/auth.js";
 
 const orderRouter = express.Router();
 
-// Public routes
-orderRouter.post("/verify", verifyOrder); // M-Pesa callback verification
-orderRouter.get("/list", listOrders); // Admin: Get all orders
+// Public routes (no authentication required)
+orderRouter.post("/mpesa-callback", mpesaCallback); // M-Pesa payment callback
+orderRouter.post("/verify", verifyOrder); // M-Pesa payment verification
 
-// Protected routes (require authentication)
-orderRouter.post("/place", placeOrder); // Customer: Place new order
-orderRouter.get("/user", userOrders); // Customer: Get user's orders
-orderRouter.post("/status", updateStatus); // Admin: Update order status
+// Protected routes - Customer (require authentication)
+orderRouter.post("/place", authMiddleware, placeOrder); // Customer: Place new order
+orderRouter.get("/user", authMiddleware, userOrders); // Customer: Get user's orders
+orderRouter.post("/cancel", authMiddleware, cancelOrder); // Customer: Cancel order
+
+// Protected routes - Admin (require authentication)
+orderRouter.get("/list", authMiddleware, listOrders); // Admin: Get all orders
+orderRouter.post("/status", authMiddleware, updateStatus); // Admin: Update order status
+orderRouter.get("/payments", authMiddleware, getPaymentConfirmations); // Admin: Get payment confirmations
 
 export default orderRouter;
