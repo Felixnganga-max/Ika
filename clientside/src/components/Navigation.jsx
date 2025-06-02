@@ -170,7 +170,6 @@ const Navigation = () => {
   };
 
   const menuItems = [
-    { title: "Place Order", href: "#", icon: ShoppingCart },
     { title: "Our Menu", href: "/menu", isScroll: true },
     { title: "About Us", href: "/about-us" },
     { title: "Get In Touch", href: "#" },
@@ -271,7 +270,7 @@ const Navigation = () => {
                         <p className="text-sm text-gray-500">Signed in as</p>
                         <p className="text-sm font-medium text-gray-900">
                           {JSON.parse(localStorage.getItem("user") || "{}")
-                            .email || "user@example.com"}
+                            .name || "user@example.com"}
                         </p>
                       </div>
 

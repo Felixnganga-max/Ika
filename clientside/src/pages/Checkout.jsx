@@ -249,6 +249,10 @@ const Checkout = () => {
         saveAddress: formData.saveAddress,
       };
 
+      console.log(
+        `This is user id ${JSON.parse(localStorage.getItem("user"))?.id}`
+      );
+
       // Submit order based on payment method
       if (paymentMethod === "mpesa") {
         const response = await axios.post(

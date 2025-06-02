@@ -45,7 +45,7 @@ const Menu = () => {
   const navigate = useNavigate();
 
   // Base API URL
-  const API_BASE_URL = "http://localhost:4000/api";
+  const API_BASE_URL = "https://ika-cua5-backend.vercel.app/api";
 
   // Food Tags
   const foodTags = [

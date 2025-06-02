@@ -36,7 +36,7 @@ const FoodSlider = () => {
   const navigate = useNavigate();
 
   // Base API URL
-  const API_BASE_URL = "http://localhost:4000/api";
+  const API_BASE_URL = "https://ika-cua5-backend.vercel.app/api";
 
   // Get authentication token and user from localStorage on component mount
   useEffect(() => {
