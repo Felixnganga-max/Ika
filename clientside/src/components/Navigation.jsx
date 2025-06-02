@@ -121,8 +121,8 @@ const Navigation = () => {
 
     try {
       const endpoint = isSignUp
-        ? "http://localhost:4000/api/user/register"
-        : "http://localhost:4000/api/user/login";
+        ? "https://ika-cua5-backend.vercel.app/api/user/register"
+        : "https://ika-cua5-backend.vercel.app/api/user/login";
 
       const response = await fetch(endpoint, {
         method: "POST",
